@@ -1,15 +1,27 @@
 use super::config::Config;
+use crate::envoy::{embassy::Embassy, error::EmbassyError, message};
 use eframe::egui::{RichText, Color32};
 
 #[derive(Debug)]
 pub struct EnvoyApp {
-    config: Config
+    config: Config,
+    embassy: Embassy
 }
 
 impl EnvoyApp {
     /// Startup the application
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
-        EnvoyApp { config: Config::new() }
+    pub fn new(_cc: &eframe::CreationContext<'_>, embassy: Embassy) -> Self {
+        EnvoyApp { config: Config::new(), embassy: embassy }
+    }
+
+    fn poll_embassy(&mut self) -> Result<(), EmbassyError> {
+        let messages = self.embassy.poll_messages()?;
+        for message in messages {
+            //do some stuff
+            tracing::info!("We've got some messages: {}", message);
+        }
+
+        Ok(())
     }
 }
 

@@ -1,3 +1,4 @@
+use super::error::EmbassyError;
 
 #[derive(Debug, Clone)]
 pub enum ECCStatus {
@@ -41,15 +42,38 @@ impl std::fmt::Display for ECCMessage {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum MessageKind {
+    ECC,
+    DataRouter,
+    Other
+}
+
+impl std::fmt::Display for MessageKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ECC => write!(f, "ECC"),
+            Self::DataRouter => write!(f, "DataRouter"),
+            Self::Other => write!(f, "Other")
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct EmbassyMessage {
-    kind: String,
-    id: String,
-    body: String
+    pub kind: MessageKind,
+    pub id: String,
+    pub body: String
 }
 
 impl From<ECCMessage> for EmbassyMessage {
     fn from(value: ECCMessage) -> Self {
-        Self { kind: String::from("ECC"), id: value.id, body: value.body }
+        Self { kind: MessageKind::ECC, id: value.id, body: value.body }
+    }
+}
+
+impl std::fmt::Display for EmbassyMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "EmbassyMessage from {} of kind {} with body: {}", self.id, self.kind, self.body)
     }
 }
