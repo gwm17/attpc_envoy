@@ -1,23 +1,24 @@
-use super::message::{EmbassyMessage, ECCMessage, MessageKind};
+use super::message::{EmbassyMessage, MessageKind};
 use super::error::EmbassyError;
+use std::collections::HashMap;
 use tokio::sync::mpsc::{Sender, Receiver, error::TryRecvError};
 
 #[derive(Debug)]
 pub struct Embassy {
-    ecc_senders: Vec<Sender<EmbassyMessage>>,
-    ecc_reciever: Receiver<ECCMessage>
+    ecc_senders: HashMap<i32, Sender<EmbassyMessage>>,
+    ecc_reciever: Receiver<EmbassyMessage>
 }
 
 impl Embassy {
 
-    pub fn new(ecc_reciever: Receiver<ECCMessage>, ecc_senders: Vec<Sender<EmbassyMessage>>) -> Self {
-        Embassy { ecc_senders: ecc_senders, ecc_reciever: ecc_reciever }
+    pub fn new(ecc_reciever: Receiver<EmbassyMessage>, ecc_senders: HashMap<i32, Sender<EmbassyMessage>>) -> Self {
+        Embassy { ecc_senders, ecc_reciever }
     }
 
-    pub fn submit_message(self, message: EmbassyMessage) -> Result<(), EmbassyError> {
+    pub fn submit_message(&mut self, message: EmbassyMessage) -> Result<(), EmbassyError> {
         if message.kind == MessageKind::ECC {
-            for sender in self.ecc_senders.iter() {
-                sender.blocking_send(message.clone())?;
+            if let Some(&mut sender) = self.ecc_senders.get_mut(&message.id) {
+                sender.blocking_send(message)?;
             }
         }
         Ok(())

@@ -1,46 +1,4 @@
-use super::error::EmbassyError;
-
-#[derive(Debug, Clone)]
-pub enum ECCStatus {
-    Disconnected,
-    Idle,
-    Prepared,
-    Described,
-    Ready,
-    Active
-}
-
-impl std::fmt::Display for ECCStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Disconnected => write!(f, "Disconnected"),
-            Self::Idle => write!(f, "Idle"),
-            Self::Prepared => write!(f, "Prepared"),
-            Self::Described => write!(f, "Described"),
-            Self::Ready => write!(f, "Ready"),
-            Self::Active => write!(f, "Active")
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct ECCMessage {
-    pub status: ECCStatus,
-    pub id: String,
-    pub body: String
-}
-
-impl Default for ECCMessage {
-    fn default() -> Self {
-        Self { status: ECCStatus::Disconnected, id: String::from("Invalid"), body: String::new() }
-    }
-}
-
-impl std::fmt::Display for ECCMessage {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ECCMessage from {} with status {}: {}", self.id, self.status, self.body)
-    }
-}
+const MESSAGE_EMPTY_FIELD: &str = "None";
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum MessageKind {
@@ -62,18 +20,25 @@ impl std::fmt::Display for MessageKind {
 #[derive(Debug, Clone)]
 pub struct EmbassyMessage {
     pub kind: MessageKind,
-    pub id: String,
-    pub body: String
-}
-
-impl From<ECCMessage> for EmbassyMessage {
-    fn from(value: ECCMessage) -> Self {
-        Self { kind: MessageKind::ECC, id: value.id, body: value.body }
-    }
+    pub id: i32,
+    pub operation: String,
+    pub response: String
 }
 
 impl std::fmt::Display for EmbassyMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "EmbassyMessage from {} of kind {} with body: {}", self.id, self.kind, self.body)
+        write!(f, "EmbassyMessage from {} of kind {} for operation {} with response: {}", self.id, self.kind, self.operation, self.response)
     }
+}
+
+impl EmbassyMessage {
+
+    pub fn compose_ecc_op(operation: String, id: i32) -> Self {
+        EmbassyMessage { kind: MessageKind::ECC, id, operation, response: String::from(MESSAGE_EMPTY_FIELD) }
+    }
+
+    pub fn compose_ecc_response(response: String, id: i32) -> Self {
+        EmbassyMessage { kind: MessageKind::ECC, id, operation: String::from(MESSAGE_EMPTY_FIELD), response }
+    }
+
 }
