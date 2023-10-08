@@ -4,7 +4,8 @@ const MESSAGE_EMPTY_FIELD: &str = "None";
 pub enum MessageKind {
     ECC,
     DataRouter,
-    Other
+    Other,
+    Cancel
 }
 
 impl std::fmt::Display for MessageKind {
@@ -12,7 +13,8 @@ impl std::fmt::Display for MessageKind {
         match self {
             Self::ECC => write!(f, "ECC"),
             Self::DataRouter => write!(f, "DataRouter"),
-            Self::Other => write!(f, "Other")
+            Self::Other => write!(f, "Other"),
+            Self::Cancel => write!(f, "Cancel"),
         }
     }
 }
@@ -39,6 +41,10 @@ impl EmbassyMessage {
 
     pub fn compose_ecc_response(response: String, id: i32) -> Self {
         EmbassyMessage { kind: MessageKind::ECC, id, operation: String::from(MESSAGE_EMPTY_FIELD), response }
+    }
+
+    pub fn compose_cancel() -> Self {
+        EmbassyMessage { kind: MessageKind::Other, id: 0, operation: String::from(MESSAGE_EMPTY_FIELD), response: String::from(MESSAGE_EMPTY_FIELD) }
     }
 
 }

@@ -1,11 +1,14 @@
 use super::message::EmbassyMessage;
-use super::ecc_operation::{ECCOperation, ECCStatus};
+use super::ecc_operation::ECCOperation;
 use super::error::EnvoyError;
 use reqwest::{Client, Response};
 use std::time::Duration;
-use tokio::sync::mpsc::{Receiver, Sender};
+use std::collections::HashMap;
+use tokio::sync::mpsc;
+use tokio::sync::broadcast;
+use tokio::task::JoinHandle;
 
-const NUMBER_OF_ECC_ENVOYS: usize = 11;
+const NUMBER_OF_ECC_ENVOYS: i32 = 11;
 
 const ECC_MUTANT_ID: i32 = 11;
 
@@ -50,7 +53,7 @@ impl ECCConfig {
 
     fn describe(&self) -> String {
         match self.id {
-            ECC_MUTANT_ID => self.experiment,
+            ECC_MUTANT_ID => self.experiment.clone(),
             _ => format!("cobo{}", self.id)
         }
     }
@@ -67,71 +70,78 @@ impl ECCConfig {
     }
 
     fn url(address: &str) -> String {
-        format!("http//{}:{}", address, ECC_URL_PORT)
+        format!("http://{}:{}", address, ECC_URL_PORT)
     }
 }
 
 #[derive(Debug)]
 pub struct ECCEnvoy {
-    status: ECCStatus,
     config: ECCConfig,
     connection: Client,
-    incoming: Receiver<EmbassyMessage>,
-    outgoing: Sender<EmbassyMessage>
+    incoming: mpsc::Receiver<EmbassyMessage>,
+    outgoing: mpsc::Sender<EmbassyMessage>,
+    cancel: broadcast::Receiver<EmbassyMessage>
 }
 
 impl ECCEnvoy {
-    pub async fn new(config: ECCConfig, rx: Receiver<EmbassyMessage>, tx: Sender<EmbassyMessage>) -> Result<Self, EnvoyError> {
+    pub async fn new(config: ECCConfig, rx: mpsc::Receiver<EmbassyMessage>, tx: mpsc::Sender<EmbassyMessage>, cancel: broadcast::Receiver<EmbassyMessage>) -> Result<Self, EnvoyError> {
         //3min default timeouts
-        let connection_out = Duration::from_secs(360);
-        let req_timeout = Duration::from_secs(360);
+        let connection_out = Duration::from_secs(10);
+        let req_timeout = Duration::from_secs(10);
 
         //Probably need some options here, for now just set some timeouts
         let client = Client::builder()
                                 .connect_timeout(connection_out)
                                 .timeout(req_timeout)
                                 .build()?;
-        let mut envoy = Self { status: ECCStatus::Offline, config, connection: client, incoming: rx, outgoing: tx };
-
-
-        //Send a get request to establish the connection and retrieve the status
-        let response: Response = envoy.connection.get(&envoy.config.url)
-                                                 .send().await?;
-        let message = envoy.parse_ecc_response(response)?;
-        envoy.status = ECCStatus::try_from(message.response)?;
-        Ok(envoy)
+        return Ok(Self { config, connection: client, incoming: rx, outgoing: tx, cancel});
     }
 
     pub async fn wait_for_transition(&mut self) -> Result<(), EnvoyError> {
         loop {
-            if let Some(message) = self.incoming.recv().await {
-                let response = self.submit_transition().await?;
-                self.outgoing.send(response).await?;
-            } else {
-                break;
+            tokio::select! {
+                _ = self.cancel.recv() => {
+                    return Ok(())
+                }
+
+                data = self.incoming.recv() => {
+                    if let Some(message) = data {
+                        let response = self.submit_transition(message).await?;
+                        self.outgoing.send(response).await?;
+                    } else {
+                        return Ok(())
+                    }
+                }
             }
         }
-        Ok(())
     }
 
-    pub async fn wait_check_status(&self) -> Result<(), EnvoyError> {
+    pub async fn wait_check_status(&mut self) -> Result<(), EnvoyError> {
         loop {
-            if let Ok(response) = self.submit_check_status().await {
-                self.outgoing.send(response).await?
-            } else {
-                let message = EmbassyMessage::compose_ecc_response(String::from("Offline"), self.config.id);
-                self.outgoing.send(message).await?
+            tokio::select! {
+                _ = self.cancel.recv() => {
+                    return Ok(());
+                }
+
+                _ = tokio::time::sleep(Duration::from_secs(2)) => {
+                    if let Ok(response) = self.submit_check_status().await {
+                        self.outgoing.send(response).await?
+                    } else {
+                        let message = EmbassyMessage::compose_ecc_response(String::from("Offline"), self.config.id);
+                        self.outgoing.send(message).await?
+                    }
+                }
             }
         }
     }
 
-    async fn submit_transition(&self) -> Result<EmbassyMessage, EnvoyError> {
+    async fn submit_transition(&self, message: EmbassyMessage) -> Result<EmbassyMessage, EnvoyError> {
         let response = self.connection
                                      .post(&self.config.url)
                                      .header("ContentType", "text/xml")
                                      .send().await?;
-        let message = self.parse_ecc_response(response)?;
-        Ok(message)
+        let parsed_response = self.parse_ecc_response(response)?;
+        Ok(parsed_response)
     }
 
     async fn submit_check_status(&self) -> Result<EmbassyMessage, EnvoyError> {
@@ -147,4 +157,63 @@ impl ECCEnvoy {
         return Ok(format!("{ECC_SOAP_HEADER}<{op}>\n</{op}>\n{ECC_SOAP_FOOTER}"));
     }
 
+    pub fn get_id(&self) -> i32 {
+        self.config.id
+    }
+
+}
+
+/// Startup the ECC communication system
+/// Takes in a runtime, experiment name, and a channel to send data to the embassy. Spawns the ECCEnvoys with tasks to either wait for
+/// a command to transition that ECC DAQ or to periodically check the status of that particular ECC DAQ.
+pub fn startup_ecc_envoys(runtime: &mut tokio::runtime::Runtime, experiment: &str, ecc_tx: &mpsc::Sender<EmbassyMessage>, cancel: &broadcast::Sender<EmbassyMessage>) -> (Vec<JoinHandle<()>>, HashMap<i32, mpsc::Sender<EmbassyMessage>>) {
+    let mut transition_switchboard = HashMap::new();
+    let mut handles: Vec<JoinHandle<()>> = vec![];
+
+    //spin up the transition envoys
+    for id in 0..NUMBER_OF_ECC_ENVOYS {
+        let config = ECCConfig::new(id, experiment);
+        let (embassy_tx, ecc_rx) = mpsc::channel::<EmbassyMessage>(10);
+        let this_ecc_tx = ecc_tx.clone();
+        let this_cancel = cancel.subscribe();
+        let handle = runtime.spawn(async move {
+            match ECCEnvoy::new(config, ecc_rx, this_ecc_tx, this_cancel).await {
+                Ok(mut ev) => {
+                    match ev.wait_for_transition().await {
+                        Ok(()) =>(),
+                        Err(e) => tracing::error!("ECC transition envoy ran into an error: {}", e)
+                    }
+                }
+                Err(e) => tracing::error!("Error creating ECC transition envoy: {}", e)
+            }
+        });
+
+        transition_switchboard.insert(id, embassy_tx);
+        handles.push(handle);
+    }
+    
+    //spin up the status envoys
+    for id in 0..NUMBER_OF_ECC_ENVOYS {
+        let config = ECCConfig::new(id, experiment);
+        //The incoming channel is unused in the status envoy, however this may be changed later.
+        //Could be useful to tie the update rate to the GUI?
+        let (_, ecc_rx) = mpsc::channel::<EmbassyMessage>(10);
+        let this_ecc_tx = ecc_tx.clone();
+        let this_cancel = cancel.subscribe();
+        let handle = runtime.spawn(async move {
+            match ECCEnvoy::new(config, ecc_rx, this_ecc_tx, this_cancel).await {
+                Ok(mut ev) => {
+                    match ev.wait_check_status().await {
+                        Ok(()) =>(),
+                        Err(e) => tracing::error!("ECC transition envoy ran into an error: {}", e)
+                    }
+                }
+                Err(e) => tracing::error!("Error creating ECC transition envoy: {}", e)
+            }
+        });
+
+        handles.push(handle);
+    }
+
+    return (handles, transition_switchboard);
 }

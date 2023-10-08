@@ -1,26 +1,54 @@
 use super::config::Config;
-use crate::envoy::{embassy::Embassy, error::EmbassyError, message};
+use crate::envoy::embassy::{Embassy, connect_embassy};
+use crate::envoy::error::EmbassyError;
 use eframe::egui::{RichText, Color32};
 
 #[derive(Debug)]
 pub struct EnvoyApp {
     config: Config,
-    embassy: Embassy
+    runtime: tokio::runtime::Runtime,
+    embassy: Option<Embassy>,
+    ecc_handles: Option<Vec<tokio::task::JoinHandle<()>>>
 }
 
 impl EnvoyApp {
     /// Startup the application
-    pub fn new(_cc: &eframe::CreationContext<'_>, embassy: Embassy) -> Self {
-        EnvoyApp { config: Config::new(), embassy: embassy }
+    pub fn new(_cc: &eframe::CreationContext<'_>, runtime: tokio::runtime::Runtime) -> Self {
+        EnvoyApp { config: Config::new(), runtime, embassy: None, ecc_handles: None }
+    }
+
+    fn connect(&mut self) {
+        if self.embassy.is_none() && self.ecc_handles.is_none() {
+            let (em, ecc_handles) = connect_embassy(&mut self.runtime, &self.config.experiment);
+            tracing::info!("Connnected with {} tasks spawned", ecc_handles.len());
+            self.embassy = Some(em);
+            self.ecc_handles = Some(ecc_handles);
+        }
+    }
+
+    fn disconnect(&mut self) {
+        if self.embassy.is_some() {
+            let mut embassy = self.embassy.take().expect("Literally cant happen");
+            embassy.shutdown();
+            let handles = self.ecc_handles.take().expect("Handles did not exist at disconnect?");
+            for handle in handles {
+                match self.runtime.block_on(handle) {
+                    Ok(()) => (),
+                    Err(e) => tracing::error!("Encountered an error whilst disconnecting: {}", e)
+                }
+            }
+            tracing::info!("Disconnected the embassy");
+        }
     }
 
     fn poll_embassy(&mut self) -> Result<(), EmbassyError> {
-        let messages = self.embassy.poll_messages()?;
-        for message in messages {
-            //do some stuff
-            tracing::info!("We've got some messages: {}", message);
+        if let Some(embassy) = self.embassy.as_mut() {
+            let messages = embassy.poll_messages()?;
+            for message in messages {
+                //do some stuff
+                tracing::info!("We've got some messages: {}", message);
+            }
         }
-
         Ok(())
     }
 }
@@ -47,6 +75,12 @@ impl eframe::App for EnvoyApp {
             ui.text_edit_singleline(&mut self.config.description);
             ui.label(RichText::new("Run Number").color(Color32::WHITE).size(12.0));
             ui.add(eframe::egui::widgets::DragValue::new(&mut self.config.run_number).speed(1));
+            if ui.button(RichText::new("Connect").color(Color32::LIGHT_BLUE).size(14.0)).clicked() {
+                self.connect();
+            }
+            if ui.button(RichText::new("Disconnect").color(Color32::LIGHT_RED).size(14.0)).clicked() {
+                self.disconnect();
+            }
 
         });
 
