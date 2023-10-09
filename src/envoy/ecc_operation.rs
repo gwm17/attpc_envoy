@@ -7,6 +7,8 @@ const ECC_PREPARED_STATUS: &str = "Prepared";
 const ECC_DESCRIBED_STATUS: &str = "Described";
 const ECC_READY_STATUS: &str = "Ready";
 const ECC_RUNNING_STATUS: &str = "Running";
+const ECC_ERROR_STATUS: &str = "Error";
+
 const ECC_DESCRIBE_OP: &str = "Describe";
 const ECC_PREPARE_OP: &str = "Prepare";
 const ECC_CONFIGURE_OP: &str = "Configure";
@@ -23,7 +25,8 @@ pub enum ECCStatus {
     Prepared,
     Described,
     Ready,
-    Running
+    Running,
+    ErrorStat
 }
 
 impl std::fmt::Display for ECCStatus {
@@ -35,7 +38,8 @@ impl std::fmt::Display for ECCStatus {
             Self::Prepared => write!(f, "{ECC_PREPARED_STATUS}"),
             Self::Described => write!(f, "{ECC_DESCRIBED_STATUS}"),
             Self::Ready => write!(f, "{ECC_READY_STATUS}"),
-            Self::Running => write!(f, "{ECC_RUNNING_STATUS}")
+            Self::Running => write!(f, "{ECC_RUNNING_STATUS}"),
+            Self::ErrorStat => write!(f, "{ECC_ERROR_STATUS}")
         }
     }
 }
@@ -49,7 +53,8 @@ impl Into<String> for ECCStatus {
             Self::Prepared => ECC_PREPARED_STATUS,
             Self::Described => ECC_DESCRIBED_STATUS,
             Self::Ready => ECC_READY_STATUS,
-            Self::Running => ECC_RUNNING_STATUS
+            Self::Running => ECC_RUNNING_STATUS,
+            Self::ErrorStat => ECC_ERROR_STATUS
         })
     }
 }
@@ -65,6 +70,7 @@ impl TryFrom<String> for ECCStatus {
             ECC_DESCRIBED_STATUS => Ok(Self::Described),
             ECC_READY_STATUS => Ok(Self::Ready),
             ECC_RUNNING_STATUS => Ok(Self::Running),
+            ECC_ERROR_STATUS => Ok(Self::ErrorStat),
             _ => Err(Self::Error::BadString(value))
         }
     }

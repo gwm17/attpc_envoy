@@ -1,12 +1,36 @@
 use super::message::EmbassyMessage;
-use super::ecc_operation::ECCOperation;
+use super::ecc_operation::{ECCOperation, ECCStatus};
 use super::error::EnvoyError;
 use reqwest::{Client, Response};
+use std::fmt::format;
 use std::time::Duration;
 use std::collections::HashMap;
 use tokio::sync::mpsc;
 use tokio::sync::broadcast;
 use tokio::task::JoinHandle;
+use serde::Deserialize;
+
+#[derive(Deserialize)]
+struct ResponseText {
+    #[serde(rename="ErrorCode")]
+    error_code: i32,
+    #[serde(rename="ErrorMessage")]
+    error_message: String,
+    #[serde(rename="Text")]
+    text: String
+}
+
+#[derive(Deserialize)]
+struct ResponseState {
+    #[serde(rename="ErrorCode")]
+    error_code: i32,
+    #[serde(rename="ErrorMessage")]
+    error_message: String,
+    #[serde(rename="State")]
+    state: i32,
+    #[serde(rename="Transition")]
+    transition: i32
+}
 
 const NUMBER_OF_ECC_ENVOYS: i32 = 12;
 
@@ -174,7 +198,7 @@ impl ECCEnvoy {
                                      .header("ContentType", "text/xml")
                                      .body(ecc_message)
                                      .send().await?;
-        let parsed_response = self.parse_ecc_response(response).await?;
+        let parsed_response = self.parse_ecc_response_text(response).await?;
         Ok(parsed_response)
     }
 
@@ -185,13 +209,40 @@ impl ECCEnvoy {
                                 .header("ContentType", "text/xml")
                                 .body(message)
                                 .send().await?;
-        let parsed_response = self.parse_ecc_response(response).await?;
+        let parsed_response = self.parse_ecc_response_state(response).await?;
         Ok(parsed_response)
     }
 
-    async fn parse_ecc_response(&self, response: Response) -> Result<EmbassyMessage, EnvoyError> {
+    async fn parse_ecc_response_text(&self, response: Response) -> Result<EmbassyMessage, EnvoyError> {
         let text = response.text().await?;
-        todo!();
+        let parsed = quick_xml::de::from_str::<ResponseText>(&text).expect("Bad ResponseText format!");
+        if parsed.error_code != 0 {
+            return Ok(EmbassyMessage::compose_ecc_response(format!("ECC Error -- Code: {} -- Message: {}", parsed.error_code, parsed.error_message), self.config.id));
+        }
+        else {
+            return Ok(EmbassyMessage::compose_ecc_response(parsed.text, self.config.id));
+        }
+    }
+
+    async fn parse_ecc_response_state(&self, response: Response) -> Result<EmbassyMessage, EnvoyError> {
+        let text = response.text().await?;
+        let parsed = quick_xml::de::from_str::<ResponseState>(&text).expect("Bad ResponseState format!");
+        let status: ECCStatus;
+        if parsed.error_code != 0 {
+            status = ECCStatus::ErrorStat;
+        } else if parsed.transition != 0 {
+            status = ECCStatus::Transition;
+        } else {
+             status = match parsed.state {
+                1 => ECCStatus::Idle,
+                2 => ECCStatus::Described,
+                3 => ECCStatus::Prepared,
+                4 => ECCStatus::Ready,
+                5 => ECCStatus::Running,
+                _ => ECCStatus::ErrorStat
+            };
+        }
+        return Ok(EmbassyMessage::compose_ecc_response(format!("{status}"), self.config.id));
     }
 
     fn compose_ecc_transition_request(&self, message: EmbassyMessage) -> Result<String, EnvoyError> {
