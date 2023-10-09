@@ -8,30 +8,29 @@ use tokio::sync::mpsc;
 use tokio::sync::broadcast;
 use tokio::task::JoinHandle;
 
-const NUMBER_OF_ECC_ENVOYS: i32 = 11;
+const NUMBER_OF_ECC_ENVOYS: i32 = 12;
 
 const ECC_MUTANT_ID: i32 = 11;
 
-const ECC_COMMAND_PORT: i32 = 46005;
+const ECC_DATA_PORT: i32 = 46005;
 const ECC_URL_PORT: i32 = 8083;
 
 const ECC_PROTOCOL: &str = "TCP";
 
-const ECC_SOAP_HEADER: &str = "\
-    <?xml version=\"1.0\" encoding=\"UTF-8\"?> \n
-    <SOAP-ENV:Envelope\n\
-    xmlns:SOAP-ENV=\"http://schemas.xmlsoap.org/soap/envelope/\"\n\
-    xmlns:SOAP-ENC=\"http://schemas.xmlsoap.org/soap/encoding/\"\n\
-    xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n\
-    xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\"\n\
-    xmlns=\"urn:ecc\">\n\
-    <SOAP-ENV:Body>\n
-";
+const ECC_SOAP_HEADER: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+    <SOAP-ENV:Envelope 
+    xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" 
+    xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+    xmlns="urn:ecc">
+    <SOAP-ENV:Body>
+"#;
 
-const ECC_SOAP_FOOTER: &str = "\
-    </SOAP-ENV:Body>\n\
-    </SOAP-ENV:Envelope>\n
-";
+const ECC_SOAP_FOOTER: &str = r#"
+    </SOAP-ENV:Body>
+    </SOAP-ENV:Envelope>
+"#;
 
 #[derive(Debug, Clone)]
 pub struct ECCConfig {
@@ -49,6 +48,39 @@ impl ECCConfig {
         };
         let url = Self::url(&address);
         return ECCConfig { id, experiment: experiment.to_string(), address, url};
+    }
+
+    fn compose_config_body(&self) -> String {
+        let describe = self.describe();
+        let prepare = self.experiment.clone();
+        let configure = self.experiment.clone();
+        format!(r#"<configID>
+                        <ConfigId>
+                            <SubConfigId type="describe">
+                                {describe}
+                            </SubConfigId>
+                            <SubConfigId type="prepare">
+                                {prepare}
+                            </SubConfigId>
+                            <SubConfigId type="configure">
+                                {configure}
+                            </SubConfigId>
+                        </ConfigId>
+                    </configID>"#)
+    }
+
+    fn compose_data_link_body(&self) -> String {
+        let source = self.source();
+        let ip = self.address.clone();
+        let router = self.data_router();
+        format!(r#"<table>
+                        <DataLinkSet>
+                            <DataLink>
+                                <DataSender id="{source}" />
+                                <DataRouter ipAddress="{ip}" name="{router}" port="{ECC_DATA_PORT}" type="{ECC_PROTOCOL}" />
+                            </DataLink>
+                        </DataLinkSet>
+                    </table>"#)
     }
 
     fn describe(&self) -> String {
@@ -136,29 +168,37 @@ impl ECCEnvoy {
     }
 
     async fn submit_transition(&self, message: EmbassyMessage) -> Result<EmbassyMessage, EnvoyError> {
+        let ecc_message = self.compose_ecc_transition_request(message)?;
         let response = self.connection
                                      .post(&self.config.url)
                                      .header("ContentType", "text/xml")
+                                     .body(ecc_message)
                                      .send().await?;
-        let parsed_response = self.parse_ecc_response(response)?;
+        let parsed_response = self.parse_ecc_response(response).await?;
         Ok(parsed_response)
     }
 
     async fn submit_check_status(&self) -> Result<EmbassyMessage, EnvoyError> {
-        todo!()
+        let message = format!("{ECC_SOAP_HEADER}<GetStatus>\n</GetStatus>\n{ECC_SOAP_FOOTER}");
+        let response = self.connection
+                                .post(&self.config.url)
+                                .header("ContentType", "text/xml")
+                                .body(message)
+                                .send().await?;
+        let parsed_response = self.parse_ecc_response(response).await?;
+        Ok(parsed_response)
     }
 
-    fn parse_ecc_response(&self, response: Response) -> Result<EmbassyMessage, EnvoyError> {
-        todo!()
+    async fn parse_ecc_response(&self, response: Response) -> Result<EmbassyMessage, EnvoyError> {
+        let text = response.text().await?;
+        todo!();
     }
 
     fn compose_ecc_transition_request(&self, message: EmbassyMessage) -> Result<String, EnvoyError> {
         let op = ECCOperation::try_from(message.operation)?;
-        return Ok(format!("{ECC_SOAP_HEADER}<{op}>\n</{op}>\n{ECC_SOAP_FOOTER}"));
-    }
-
-    pub fn get_id(&self) -> i32 {
-        self.config.id
+        let config = self.config.compose_config_body();
+        let link = self.config.compose_data_link_body();
+        return Ok(format!("{ECC_SOAP_HEADER}<{op}>\n{config}{link}</{op}>\n{ECC_SOAP_FOOTER}"));
     }
 
 }

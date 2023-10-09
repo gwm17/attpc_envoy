@@ -14,7 +14,6 @@ const ECC_START_OP: &str = "Start";
 const ECC_UNDO_OP: &str = "Undo";
 const ECC_BREAKUP_OP: &str = "Breakup";
 const ECC_STOP_OP: &str = "Stop";
-const ECC_CHECK_OP: &str = "Check";
 
 #[derive(Debug, Clone)]
 pub enum ECCStatus {
@@ -80,7 +79,6 @@ pub enum ECCOperation {
     Undo,
     Breakup,
     Stop,
-    CheckStatus
 }
 
 impl std::fmt::Display for ECCOperation {
@@ -93,7 +91,6 @@ impl std::fmt::Display for ECCOperation {
             Self::Undo => write!(f, "{ECC_UNDO_OP}"),
             Self::Breakup => write!(f, "{ECC_BREAKUP_OP}"),
             Self::Stop => write!(f, "{ECC_STOP_OP}"),
-            Self::CheckStatus => write!(f, "{ECC_CHECK_OP}")
         }
     }
 }
@@ -109,7 +106,6 @@ impl TryFrom<String> for ECCOperation {
             ECC_UNDO_OP => Ok(Self::Undo),
             ECC_BREAKUP_OP => Ok(Self::Breakup),
             ECC_STOP_OP => Ok(Self::Stop),
-            ECC_CHECK_OP => Ok(Self::CheckStatus),
             _ => Err(Self::Error::BadString(value))
         }
     }
@@ -125,7 +121,6 @@ impl Into<String> for ECCOperation {
             Self::Undo => ECC_UNDO_OP,
             Self::Breakup => ECC_BREAKUP_OP,
             Self::Stop => ECC_STOP_OP,
-            Self::CheckStatus => ECC_CHECK_OP
         })
     }
 }
