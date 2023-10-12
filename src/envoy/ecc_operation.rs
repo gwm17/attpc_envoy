@@ -76,6 +76,20 @@ impl TryFrom<String> for ECCStatus {
     }
 }
 
+impl From<i32> for ECCStatus {
+    fn from(value: i32) -> Self {
+        match value {
+            0 => ECCStatus::Offline,
+            1 => ECCStatus::Idle,
+            2 => ECCStatus::Described,
+            3 => ECCStatus::Prepared,
+            4 => ECCStatus::Ready,
+            5 => ECCStatus::Running,
+            _ => ECCStatus::ErrorStat
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum ECCOperation {
     Describe,

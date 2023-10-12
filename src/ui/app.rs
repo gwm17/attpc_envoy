@@ -1,5 +1,6 @@
 use super::config::Config;
 use crate::envoy::embassy::{Embassy, connect_embassy};
+use crate::envoy::status_manager::StatusManager;
 use crate::envoy::error::EmbassyError;
 use eframe::egui::{RichText, Color32};
 
@@ -8,13 +9,14 @@ pub struct EnvoyApp {
     config: Config,
     runtime: tokio::runtime::Runtime,
     embassy: Option<Embassy>,
-    ecc_handles: Option<Vec<tokio::task::JoinHandle<()>>>
+    ecc_handles: Option<Vec<tokio::task::JoinHandle<()>>>,
+    status: StatusManager
 }
 
 impl EnvoyApp {
     /// Startup the application
     pub fn new(_cc: &eframe::CreationContext<'_>, runtime: tokio::runtime::Runtime) -> Self {
-        EnvoyApp { config: Config::new(), runtime, embassy: None, ecc_handles: None }
+        EnvoyApp { config: Config::new(), runtime, embassy: None, ecc_handles: None, status: StatusManager::new() }
     }
 
     fn connect(&mut self) {
@@ -38,18 +40,23 @@ impl EnvoyApp {
                 }
             }
             tracing::info!("Disconnected the embassy");
+            self.status.reset();
+            tracing::info!("Status manager reset.")
         }
     }
 
-    fn poll_embassy(&mut self) -> Result<(), EmbassyError> {
+    fn poll_embassy(&mut self) {
         if let Some(embassy) = self.embassy.as_mut() {
-            let messages = embassy.poll_messages()?;
-            for message in messages {
-                //do some stuff
-                tracing::info!("We've got some messages: {}", message);
-            }
+            match embassy.poll_messages() {
+                Ok(messages) => {
+                    match self.status.handle_messages(messages) {
+                        Ok(_) => (),
+                        Err(e) => tracing::error!("StatusManager ran into an error handling messages: {}", e)
+                    };
+                }
+                Err(e) => tracing::error!("Embassy ran into an error polling the envoys: {}", e)
+            };
         }
-        Ok(())
     }
 }
 
@@ -57,6 +64,9 @@ impl eframe::App for EnvoyApp {
     fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
         
         eframe::egui::CentralPanel::default().show(ctx, |ui| {
+
+            //Probably don't want to poll every frame, but as a test...
+            self.poll_embassy();
 
             ui.menu_button("File", |ui| {
                 if ui.button("Save").clicked() {

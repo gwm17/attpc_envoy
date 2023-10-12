@@ -1,9 +1,14 @@
+use super::ecc_envoy::{ECCOperationResponse, ECCStatusResponse};
+use super::error::EmbassyError;
+use super::surveyor_envoy::SurveyorStatus;
+
 const MESSAGE_EMPTY_FIELD: &str = "None";
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum MessageKind {
-    ECC,
-    DataRouter,
+    ECCOperation,
+    ECCStatus,
+    Surveyor,
     Other,
     Cancel
 }
@@ -11,8 +16,9 @@ pub enum MessageKind {
 impl std::fmt::Display for MessageKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::ECC => write!(f, "ECC"),
-            Self::DataRouter => write!(f, "DataRouter"),
+            Self::ECCOperation => write!(f, "ECCOperation"),
+            Self::ECCStatus => write!(f, "ECCStatus"),
+            Self::Surveyor => write!(f, "Surveyor"),
             Self::Other => write!(f, "Other"),
             Self::Cancel => write!(f, "Cancel"),
         }
@@ -35,16 +41,54 @@ impl std::fmt::Display for EmbassyMessage {
 
 impl EmbassyMessage {
 
+    pub fn compose_surveyor_response(response: String, id: i32) -> Self {
+        EmbassyMessage { kind: MessageKind::Surveyor, id, operation: String::from(MESSAGE_EMPTY_FIELD), response }
+    }
+
     pub fn compose_ecc_op(operation: String, id: i32) -> Self {
-        EmbassyMessage { kind: MessageKind::ECC, id, operation, response: String::from(MESSAGE_EMPTY_FIELD) }
+        EmbassyMessage { kind: MessageKind::ECCOperation, id, operation, response: String::from(MESSAGE_EMPTY_FIELD) }
     }
 
     pub fn compose_ecc_response(response: String, id: i32) -> Self {
-        EmbassyMessage { kind: MessageKind::ECC, id, operation: String::from(MESSAGE_EMPTY_FIELD), response }
+        EmbassyMessage { kind: MessageKind::ECCOperation, id, operation: String::from(MESSAGE_EMPTY_FIELD), response }
+    }
+
+    pub fn compose_ecc_status(response: String, id: i32) -> Self {
+        EmbassyMessage { kind: MessageKind::ECCStatus, id, operation: String::from(MESSAGE_EMPTY_FIELD), response }
     }
 
     pub fn compose_cancel() -> Self {
         EmbassyMessage { kind: MessageKind::Other, id: 0, operation: String::from(MESSAGE_EMPTY_FIELD), response: String::from(MESSAGE_EMPTY_FIELD) }
     }
 
+}
+
+impl TryInto<ECCStatusResponse> for EmbassyMessage {
+    type Error = EmbassyError;
+    fn try_into(self) -> Result<ECCStatusResponse, Self::Error> {
+        match self.kind {
+            MessageKind::ECCStatus => Ok(serde_yaml::from_str::<ECCStatusResponse>(&self.response)?),
+            _ => Err(Self::Error::MessageKindError(MessageKind::ECCStatus, self.kind))
+        }
+    }
+}
+
+impl TryInto<ECCOperationResponse> for EmbassyMessage {
+    type Error = EmbassyError;
+    fn try_into(self) -> Result<ECCOperationResponse, Self::Error> {
+        match self.kind {
+            MessageKind::ECCOperation => Ok(serde_yaml::from_str::<ECCOperationResponse>(&self.response)?),
+            _ => Err(Self::Error::MessageKindError(MessageKind::ECCOperation, self.kind))
+        }
+    }
+}
+
+impl TryInto<SurveyorStatus> for EmbassyMessage {
+    type Error = EmbassyError;
+    fn try_into(self) -> Result<SurveyorStatus, Self::Error> {
+        match self.kind {
+            MessageKind::Surveyor => Ok(serde_yaml::from_str::<SurveyorStatus>(&self.response)?),
+            _ => Err(Self::Error::MessageKindError(MessageKind::Surveyor, self.kind))
+        }
+    }
 }
