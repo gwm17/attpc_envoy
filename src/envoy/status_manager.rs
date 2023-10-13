@@ -1,5 +1,5 @@
 use super::ecc_envoy::{ECCOperationResponse, ECCStatusResponse};
-use super::surveyor_envoy::SurveyorStatus;
+use super::surveyor_envoy::SurveyorResponse;
 use super::message::{EmbassyMessage, MessageKind};
 use super::error::EmbassyError;
 use super::constants::NUMBER_OF_MODULES;
@@ -8,14 +8,14 @@ use super::constants::NUMBER_OF_MODULES;
 #[derive(Debug)]
 pub struct StatusManager {
     ecc_status: Vec<ECCStatusResponse>,
-    surveyor_status: Vec<SurveyorStatus>
+    surveyor_status: Vec<SurveyorResponse>
 }
 
 impl StatusManager {
 
     pub fn new() -> Self {
         let eccs = vec![ECCStatusResponse::default(); NUMBER_OF_MODULES as usize];
-        let surs = vec![SurveyorStatus::default(); (NUMBER_OF_MODULES-1) as usize];
+        let surs = vec![SurveyorResponse::default(); (NUMBER_OF_MODULES-1) as usize];
         return Self { ecc_status: eccs, surveyor_status: surs }
     }
 
@@ -25,7 +25,7 @@ impl StatusManager {
         }
 
         for surs in self.surveyor_status.iter_mut() {
-            *surs = SurveyorStatus::default();
+            *surs = SurveyorResponse::default();
         }
     }
 
@@ -50,7 +50,7 @@ impl StatusManager {
                     self.ecc_status[module_id as usize] = resp;
                 },
                 MessageKind::Surveyor => {
-                    let resp: SurveyorStatus = message.try_into()?;
+                    let resp: SurveyorResponse = message.try_into()?;
                     self.surveyor_status[module_id as usize] = resp;
                 }
                 _ => {
@@ -65,7 +65,7 @@ impl StatusManager {
         &self.ecc_status
     }
 
-    pub fn get_surveyor_status(&self) -> &[SurveyorStatus] {
+    pub fn get_surveyor_status(&self) -> &[SurveyorResponse] {
         &self.surveyor_status
     }
 }

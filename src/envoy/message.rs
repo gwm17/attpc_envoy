@@ -1,6 +1,6 @@
 use super::ecc_envoy::{ECCOperationResponse, ECCStatusResponse};
 use super::error::EmbassyError;
-use super::surveyor_envoy::SurveyorStatus;
+use super::surveyor_envoy::SurveyorResponse;
 
 const MESSAGE_EMPTY_FIELD: &str = "None";
 
@@ -83,11 +83,11 @@ impl TryInto<ECCOperationResponse> for EmbassyMessage {
     }
 }
 
-impl TryInto<SurveyorStatus> for EmbassyMessage {
+impl TryInto<SurveyorResponse> for EmbassyMessage {
     type Error = EmbassyError;
-    fn try_into(self) -> Result<SurveyorStatus, Self::Error> {
+    fn try_into(self) -> Result<SurveyorResponse, Self::Error> {
         match self.kind {
-            MessageKind::Surveyor => Ok(serde_yaml::from_str::<SurveyorStatus>(&self.response)?),
+            MessageKind::Surveyor => Ok(serde_yaml::from_str::<SurveyorResponse>(&self.response)?),
             _ => Err(Self::Error::MessageKindError(MessageKind::Surveyor, self.kind))
         }
     }

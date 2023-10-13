@@ -11,16 +11,22 @@ use serde::{Deserialize, Serialize};
 const SURVEYOR_URL_PORT: i32 = 8081;
 
 
-#[derive(Serialize, Deserialize, Clone, Default, Debug)]
-pub struct SurveyorStatus {
-    state: i32,
-    location: String,
-    disk_status: String,
-    percent_used: String,
-    disk_space: u64,
-    files: i32,
-    bytes_used: u64,
-    data_rate: f64,
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct SurveyorResponse {
+    pub state: i32,
+    pub location: String,
+    pub disk_status: String,
+    pub percent_used: String,
+    pub disk_space: u64,
+    pub files: i32,
+    pub bytes_used: u64,
+    pub data_rate: f64,
+}
+
+impl Default for SurveyorResponse {
+    fn default() -> Self {
+        Self { state: 0, location: String::from("N/A"), disk_status: String::from("N/A"), percent_used: String::from("N/A"), disk_space: 0, files: 0, bytes_used: 0, data_rate: 0.0 }
+    }
 }
 
 
@@ -83,7 +89,7 @@ impl SurveyorEnvoy {
                     if let Ok(response) = self.submit_check_status().await {
                         self.outgoing.send(response).await?
                     } else {
-                        let message = EmbassyMessage::compose_surveyor_response(serde_yaml::to_string(&SurveyorStatus::default())?, self.config.id);
+                        let message = EmbassyMessage::compose_surveyor_response(serde_yaml::to_string(&SurveyorResponse::default())?, self.config.id);
                         self.outgoing.send(message).await?
                     }
                 }
@@ -101,7 +107,7 @@ impl SurveyorEnvoy {
 
     async fn parse_response(&mut self, response: Response) -> Result<EmbassyMessage, EnvoyError> {
         let response_text = response.text().await?;
-        let mut status = SurveyorStatus::default();
+        let mut status = SurveyorResponse::default();
         let lines: Vec<&str> = response_text.lines().collect();
 
         if lines.len() == 0 {
