@@ -58,7 +58,7 @@ impl EmbassyMessage {
     }
 
     pub fn compose_cancel() -> Self {
-        EmbassyMessage { kind: MessageKind::Other, id: 0, operation: String::from(MESSAGE_EMPTY_FIELD), response: String::from(MESSAGE_EMPTY_FIELD) }
+        EmbassyMessage { kind: MessageKind::Cancel, id: 0, operation: String::from(MESSAGE_EMPTY_FIELD), response: String::from(MESSAGE_EMPTY_FIELD) }
     }
 
 }

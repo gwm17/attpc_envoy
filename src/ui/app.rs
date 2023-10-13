@@ -1,11 +1,11 @@
 use super::config::Config;
 use crate::envoy::embassy::{Embassy, connect_embassy};
+use crate::envoy::message::EmbassyMessage;
 use crate::envoy::status_manager::StatusManager;
-use crate::envoy::ecc_operation::ECCStatus;
+use crate::envoy::ecc_operation::{ECCStatus, ECCOperation};
 use crate::envoy::surveyor_state::SurveyorState;
-use crate::envoy::error::EmbassyError;
 use eframe::egui::{RichText, Color32};
-use reqwest::header;
+use eframe::egui::widgets::Button;
 
 #[derive(Debug)]
 pub struct EnvoyApp {
@@ -62,26 +62,54 @@ impl EnvoyApp {
         }
     }
 
-    fn transition_ecc(&mut self, forward_transitions: Vec<usize>, backward_transitions: Vec<usize>) {
-        todo!();
+    fn transition_ecc(&mut self, ids: Vec<usize>, is_forward: bool) {
+        if ids.len() == 0 {
+            return;
+        }
+
+        if self.embassy.is_none() {
+            tracing::error!("Some how trying to operate on ECC whilst disconnected!");
+            return;
+        }
+        for id in ids {
+            let status = &self.status.get_ecc_status()[id];
+            let operation: ECCOperation;
+            if is_forward {
+                operation = ECCStatus::from(status.state).get_forward_operation();
+            
+            } else {
+                operation = ECCStatus::from(status.state).get_backward_operation();
+            }
+            match operation {
+                ECCOperation::Invalid => (),
+                _ => {
+                    match self.embassy.as_mut().unwrap().submit_message(EmbassyMessage::compose_ecc_op(operation.into(), id as i32)) {
+                        Ok(()) => (),
+                        Err(e) => tracing::error!("Embassy had an error sending a message: {}", e)
+                    }
+                }
+            }
+        }
     }
 
     fn forward_transition_all(&mut self) {
-        todo!();
+        let ids: Vec<usize> = (0..12).collect();
+        self.transition_ecc(ids, true)
     }
 
     fn backward_transition_all(&mut self) {
-        todo!();
+        let ids: Vec<usize> = (0..12).collect();
+        self.transition_ecc(ids, false)
     }
 }
 
 impl eframe::App for EnvoyApp {
     fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
-        
-        eframe::egui::CentralPanel::default().show(ctx, |ui| {
 
-            //Probably don't want to poll every frame, but as a test...
-            self.poll_embassy();
+        //Probably don't want to poll every frame, but as a test...
+        self.poll_embassy();
+
+        eframe::egui::TopBottomPanel::top("Config_Panel").show(ctx, |ui| {
 
             ui.menu_button("File", |ui| {
                 if ui.button("Save").clicked() {
@@ -92,35 +120,50 @@ impl eframe::App for EnvoyApp {
                 }
             });
 
+            ui.horizontal(|ui| {
+                if ui.add_enabled(self.embassy.is_none(), Button::new(RichText::new("Connect").color(Color32::LIGHT_BLUE).size(16.0))).clicked() {
+                    self.connect();
+                }
+                if ui.add_enabled(self.embassy.is_some(), Button::new(RichText::new("Disconnect").color(Color32::LIGHT_RED).size(16.0))).clicked() {
+                    self.disconnect();
+                }
+            });
+
             ui.separator();
             ui.label(RichText::new("Configuration").color(Color32::LIGHT_BLUE).size(18.0));
-            ui.label(RichText::new("Experiment").color(Color32::WHITE).size(12.0));
-            ui.text_edit_singleline(&mut self.config.experiment);
-            ui.label(RichText::new("Description").color(Color32::WHITE).size(12.0));
-            ui.text_edit_singleline(&mut self.config.description);
-            ui.label(RichText::new("Run Number").color(Color32::WHITE).size(12.0));
-            ui.add(eframe::egui::widgets::DragValue::new(&mut self.config.run_number).speed(1));
-            if ui.button(RichText::new("Connect").color(Color32::LIGHT_BLUE).size(14.0)).clicked() {
-                self.connect();
-            }
-            if ui.button(RichText::new("Disconnect").color(Color32::LIGHT_RED).size(14.0)).clicked() {
-                self.disconnect();
-            }
-
-            ui.separator();
-            ui.label(RichText::new("ECC Envoy Status/Control").color(Color32::LIGHT_BLUE).size(18.0));
-
             ui.horizontal(|ui| {
-                ui.label(RichText::new(format!("System Status: {}", ECCStatus::from(0))).size(16.0).color(Color32::GOLD));
+                ui.label(RichText::new("Experiment").color(Color32::WHITE).size(16.0));
+                ui.text_edit_singleline(&mut self.config.experiment);
+            });
+            
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Description").color(Color32::WHITE).size(16.0));
+                ui.text_edit_singleline(&mut self.config.description);
+            });
+            
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Run Number").color(Color32::WHITE).size(16.0));
+                ui.add(eframe::egui::widgets::DragValue::new(&mut self.config.run_number).speed(1));
+            });
+            ui.separator();
+        });
+
+        eframe::egui::SidePanel::left("ECC_Panel").show(ctx, |ui| {
+            ui.label(RichText::new("ECC Envoy Status/Control").color(Color32::LIGHT_BLUE).size(18.0));
+            
+            ui.label(RichText::new(format!("System Status: {}", self.status.get_system_ecc_status())).size(16.0).color(Color32::GOLD));
+            ui.separator();
+            ui.horizontal(|ui| {
                 ui.label(RichText::new("Regress system").size(16.0));
-                if ui.button(RichText::new("\u{25C0}").color(Color32::RED).size(16.0)).clicked() {
+                if ui.add_enabled(self.status.get_system_ecc_status().can_go_backward(), Button::new(RichText::new("\u{25C0}").color(Color32::RED).size(16.0))).clicked() {
                     self.backward_transition_all();
                 }
                 ui.label(RichText::new("Progress system").size(16.0));
-                if ui.button(RichText::new("\u{25B6}").color(Color32::GREEN).size(16.0)).clicked() {
+                if ui.add_enabled(self.status.get_system_ecc_status().can_go_forward(),Button::new(RichText::new("\u{25B6}").color(Color32::GREEN).size(16.0))).clicked() {
                     self.forward_transition_all();
                 }
             });
+            ui.separator();
             
             let mut forward_transitions: Vec<usize> = vec![];
             let mut backward_transitions: Vec<usize> = vec![];
@@ -157,23 +200,26 @@ impl eframe::App for EnvoyApp {
                                 ui.label(RichText::new(format!("{}", ECCStatus::from(status.state))).color(Color32::GOLD));
                             });
                             row.col(|ui| {
-                                if ui.button(RichText::new("\u{25C0}").color(Color32::RED)).clicked() {
+                                if ui.add_enabled(ECCStatus::from(status.state).can_go_backward(), Button::new(RichText::new("\u{25C0}").color(Color32::RED))).clicked() {
                                     forward_transitions.push(ridx);
                                 }
                             });
                             row.col(|ui| {
-                                if ui.button(RichText::new("\u{25B6}").color(Color32::GREEN)).clicked() {
+                                if ui.add_enabled(ECCStatus::from(status.state).can_go_forward(), Button::new(RichText::new("\u{25B6}").color(Color32::GREEN))).clicked() {
                                     backward_transitions.push(ridx);
                                 }
                             });
                         });
                     });
+                ui.separator();
             });
-            
+            self.transition_ecc(forward_transitions, true);
+            self.transition_ecc(backward_transitions, false);
+        });
 
-            ui.separator();
+        eframe::egui::SidePanel::right("Surveyor_Panel").show(ctx,|ui| {
             ui.label(RichText::new("Data Router Status").color(Color32::LIGHT_BLUE).size(18.0));
-            ui.label(RichText::new(format!("System Status: {}", SurveyorState::from(0))).color(Color32::GOLD).size(16.0));
+            ui.label(RichText::new(format!("System Status: {}", self.status.get_surveyor_system_status())).color(Color32::GOLD).size(16.0));
 
             ui.separator();
             ui.push_id(1, |ui| {
@@ -254,6 +300,8 @@ impl eframe::App for EnvoyApp {
                 
             ui.separator();
         });
+        
+        
 
     }
 }

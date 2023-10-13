@@ -2,12 +2,14 @@
 const SURVEYOR_ONLINE_STATE_TEXT: &str = "Online";
 const SURVEYOR_OFFLINE_STATE_TEXT: &str = "Offline";
 const SURVEYOR_INVALID_STATE_TEXT: &str = "Invalid";
+const SURVEYOR_INCONSISTENT_STATE_TEXT: &str = "Invalid";
 
 #[derive(Debug, Clone)]
 pub enum SurveyorState {
     Online,
     Offline,
-    Invalid
+    Invalid,
+    Inconsistent
 }
 
 impl From<i32> for SurveyorState {
@@ -25,7 +27,8 @@ impl std::fmt::Display for SurveyorState {
         match self {
             Self::Online => write!(f, "{SURVEYOR_ONLINE_STATE_TEXT}"),
             Self::Offline => write!(f, "{SURVEYOR_OFFLINE_STATE_TEXT}"),
-            Self::Invalid => write!(f, "{SURVEYOR_INVALID_STATE_TEXT}")
+            Self::Invalid => write!(f, "{SURVEYOR_INVALID_STATE_TEXT}"),
+            Self::Inconsistent => write!(f, "{SURVEYOR_INCONSISTENT_STATE_TEXT}")
         }
     }
 }

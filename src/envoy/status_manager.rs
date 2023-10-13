@@ -1,8 +1,10 @@
 use super::ecc_envoy::{ECCOperationResponse, ECCStatusResponse};
+use super::ecc_operation::ECCStatus;
 use super::surveyor_envoy::SurveyorResponse;
 use super::message::{EmbassyMessage, MessageKind};
 use super::error::EmbassyError;
 use super::constants::NUMBER_OF_MODULES;
+use super::surveyor_state::SurveyorState;
 
 
 #[derive(Debug)]
@@ -65,7 +67,27 @@ impl StatusManager {
         &self.ecc_status
     }
 
+    pub fn get_system_ecc_status(&self) -> ECCStatus {
+        let sys_status = self.ecc_status[0].state;
+        for status in self.ecc_status.iter() {
+            if sys_status != status.state {
+                return ECCStatus::Inconsistent;
+            }
+        }
+        return ECCStatus::from(sys_status);
+    }
+
     pub fn get_surveyor_status(&self) -> &[SurveyorResponse] {
         &self.surveyor_status
+    }
+
+    pub fn get_surveyor_system_status(&self) -> SurveyorState {
+        let sys_status = self.surveyor_status[0].state;
+        for status in self.surveyor_status.iter() {
+            if sys_status != status.state {
+                return SurveyorState::Inconsistent;
+            }
+        }
+        return SurveyorState::from(sys_status);
     }
 }
