@@ -77,6 +77,22 @@ impl StatusManager {
         return ECCStatus::from(sys_status);
     }
 
+    pub fn is_system_ready(&self) -> bool {
+        let sys_stat = self.get_system_ecc_status();
+        match sys_stat {
+            ECCStatus::Ready => true,
+            _ => false
+        }
+    }
+
+    pub fn is_system_running(&self) -> bool {
+        let sys_stat = self.get_system_ecc_status();
+        match sys_stat {
+            ECCStatus::Running => true,
+            _ => false
+        }
+    }
+
     pub fn get_surveyor_status(&self) -> &[SurveyorResponse] {
         &self.surveyor_status
     }

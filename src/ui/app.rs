@@ -4,6 +4,10 @@ use crate::envoy::message::EmbassyMessage;
 use crate::envoy::status_manager::StatusManager;
 use crate::envoy::ecc_operation::{ECCStatus, ECCOperation};
 use crate::envoy::surveyor_state::SurveyorState;
+use crate::envoy::constants::NUMBER_OF_MODULES;
+use std::path::Path;
+use std::fs::File;
+use std::io::{Read, Write};
 use eframe::egui::{RichText, Color32};
 use eframe::egui::widgets::Button;
 
@@ -20,6 +24,47 @@ impl EnvoyApp {
     /// Startup the application
     pub fn new(_cc: &eframe::CreationContext<'_>, runtime: tokio::runtime::Runtime) -> Self {
         EnvoyApp { config: Config::new(), runtime, embassy: None, ecc_handles: None, status: StatusManager::new() }
+    }
+
+    fn read_config(&mut self, filepath: &Path) {
+        if let Ok(mut file) = File::open(filepath) {
+            let mut yaml_str = String::new();
+            match file.read_to_string(&mut yaml_str) {
+                Ok(_) => (),
+                Err(e) => {
+                    tracing::error!("Could not read yaml file: {}", e);
+                    return;
+                }
+            }
+            self.config = match serde_yaml::from_str::<Config>(&yaml_str) {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::error!("Could not deserialize config: {}", e);
+                    return;
+                }
+            }
+        } else {
+            tracing::error!("Could not open the selected file!");
+        }
+    }
+
+    fn write_config(&mut self, filepath: &Path) {
+        if let Ok(mut file) = File::create(filepath) {
+            let yaml_str = match serde_yaml::to_string::<Config>(&self.config) {
+                Ok(yaml) => yaml,
+                Err(e) => {
+                    tracing::error!("Could not convert config to yaml: {}", e);
+                    return;
+                }
+            };
+            match file.write(yaml_str.as_bytes()) {
+                Ok(_) => (),
+                Err(e) => {
+                    tracing::error!("Could not write yaml file: {}", e);
+                    return;
+                }
+            }
+        }
     }
 
     fn connect(&mut self) {
@@ -93,13 +138,33 @@ impl EnvoyApp {
     }
 
     fn forward_transition_all(&mut self) {
-        let ids: Vec<usize> = (0..12).collect();
+        let ids: Vec<usize> = (0..(NUMBER_OF_MODULES as usize)).collect();
         self.transition_ecc(ids, true)
     }
 
     fn backward_transition_all(&mut self) {
-        let ids: Vec<usize> = (0..12).collect();
+        let ids: Vec<usize> = (0..(NUMBER_OF_MODULES as usize)).collect();
         self.transition_ecc(ids, false)
+    }
+
+    fn start_run(&mut self) {
+        let operation = ECCOperation::Start;
+        for id in 0..NUMBER_OF_MODULES {
+            match self.embassy.as_mut().unwrap().submit_message(EmbassyMessage::compose_ecc_op(operation.clone().into(), id)) {
+                Ok(()) => (),
+                Err(e) => tracing::error!("Embassy had an error sending a start run message: {}", e)
+            }
+        }
+    }
+
+    fn stop_run(&mut self) {
+        let operation = ECCOperation::Stop;
+        for id in 0..12 {
+            match self.embassy.as_mut().unwrap().submit_message(EmbassyMessage::compose_ecc_op(operation.clone().into(), id)) {
+                Ok(()) => (),
+                Err(e) => tracing::error!("Embassy had an error sending a start run message: {}", e)
+            }
+        }
     }
 }
 
@@ -109,22 +174,39 @@ impl eframe::App for EnvoyApp {
         //Probably don't want to poll every frame, but as a test...
         self.poll_embassy();
 
-        eframe::egui::TopBottomPanel::top("Config_Panel").show(ctx, |ui| {
+        eframe::egui::TopBottomPanel::top("Config_Panel")
+        .show(ctx, |ui| {
 
-            ui.menu_button("File", |ui| {
-                if ui.button("Save").clicked() {
-                    println!("Saved");
+            ui.menu_button(RichText::new("File").size(16.0), |ui| {
+                if ui.button(RichText::new("Save").size(14.0)).clicked() {
+                    if let Ok(Some(path)) = native_dialog::FileDialog::new()
+                        .set_location(&std::env::current_dir().expect("Couldn't access runtime directory"))
+                        .add_filter("YAML file", &["yaml"])
+                        .show_save_single_file()
+                    {
+                        self.write_config(&path);
+                    }
+                    ui.close_menu();
                 }
-                if ui.button("Open").clicked() {
-                    println!("Opened");
+                if ui.button(RichText::new("Open").size(14.0)).clicked() {
+                    if let Ok(Some(path)) = native_dialog::FileDialog::new()
+                        .set_location(&std::env::current_dir().expect("Couldn't access runtime directory"))
+                        .add_filter("YAML file", &["yaml"])
+                        .show_open_single_file()
+                    {
+                        self.read_config(&path);
+                    }
+                    ui.close_menu();
                 }
             });
 
+            ui.separator();
+
             ui.horizontal(|ui| {
-                if ui.add_enabled(self.embassy.is_none(), Button::new(RichText::new("Connect").color(Color32::LIGHT_BLUE).size(16.0))).clicked() {
+                if ui.add_enabled(self.embassy.is_none(), Button::new(RichText::new("Connect").color(Color32::LIGHT_BLUE).size(16.0)).min_size([100.0, 25.0].into())).clicked() {
                     self.connect();
                 }
-                if ui.add_enabled(self.embassy.is_some(), Button::new(RichText::new("Disconnect").color(Color32::LIGHT_RED).size(16.0))).clicked() {
+                if ui.add_enabled(self.embassy.is_some(), Button::new(RichText::new("Disconnect").color(Color32::LIGHT_RED).size(16.0)).min_size([100.0, 25.0].into())).clicked() {
                     self.disconnect();
                 }
             });
@@ -146,9 +228,42 @@ impl eframe::App for EnvoyApp {
                 ui.add(eframe::egui::widgets::DragValue::new(&mut self.config.run_number).speed(1));
             });
             ui.separator();
+
+            ui.horizontal(|ui| {
+                if ui.add_enabled(self.status.is_system_ready(), Button::new(RichText::new("Start").color(Color32::GREEN).size(16.0)).min_size([100.0, 25.0].into())).clicked() {
+                    self.start_run();
+                }
+    
+                if ui.add_enabled(self.status.is_system_running(), Button::new(RichText::new("Stop").color(Color32::RED).size(16.0)).min_size([100.0, 25.0].into())).clicked() {
+                    self.stop_run();
+                }
+            });
+            ui.separator();
         });
 
-        eframe::egui::SidePanel::left("ECC_Panel").show(ctx, |ui| {
+        eframe::egui::TopBottomPanel::bottom("Graph_Panel").show(ctx, |ui| {
+            ui.label(RichText::new("Data Rate Graph").color(Color32::LIGHT_BLUE).size(18.0));
+            ui.separator();
+            let points: egui_plot::PlotPoints = (0..1000).map(|i| {
+                let x = i as f64 * 0.01;
+                [x, x.sin()]
+            })
+            .collect();
+            let line_graph = egui_plot::Line::new(points).name("Sine");
+            egui_plot::Plot::new("RatePlot")
+            .view_aspect(5.0)
+            .height(250.0)
+            .legend(egui_plot::Legend::default())
+            .x_axis_label(RichText::new("Time (s)").size(16.0))
+            .y_axis_label(RichText::new("Rate (MB/s)").size(16.0))
+            .show(ui, |plot_ui| {
+                plot_ui.line(line_graph);
+            });
+            ui.separator();
+        });
+
+        eframe::egui::SidePanel::left("ECC_Panel")
+        .show(ctx, |ui| {
             ui.label(RichText::new("ECC Envoy Status/Control").color(Color32::LIGHT_BLUE).size(18.0));
             
             ui.label(RichText::new(format!("System Status: {}", self.status.get_system_ecc_status())).size(16.0).color(Color32::GOLD));
@@ -171,7 +286,7 @@ impl eframe::App for EnvoyApp {
             ui.push_id(0, |ui| {
                 egui_extras::TableBuilder::new(ui)
                     .striped(true)
-                    .column(egui_extras::Column::auto().at_least(50.0).resizable(true))
+                    .column(egui_extras::Column::auto().at_least(80.0).resizable(true))
                     .column(egui_extras::Column::auto().at_least(50.0).resizable(true))
                     .column(egui_extras::Column::auto().at_least(50.0).resizable(true))
                     .column(egui_extras::Column::auto().at_least(50.0).resizable(true))
@@ -217,15 +332,17 @@ impl eframe::App for EnvoyApp {
             self.transition_ecc(backward_transitions, false);
         });
 
-        eframe::egui::SidePanel::right("Surveyor_Panel").show(ctx,|ui| {
+        eframe::egui::CentralPanel::default()
+        .show(ctx,|ui| {
             ui.label(RichText::new("Data Router Status").color(Color32::LIGHT_BLUE).size(18.0));
             ui.label(RichText::new(format!("System Status: {}", self.status.get_surveyor_system_status())).color(Color32::GOLD).size(16.0));
-
+            ui.separator();
+            ui.label(RichText::new("Status Board").size(16.0));
             ui.separator();
             ui.push_id(1, |ui| {
                 egui_extras::TableBuilder::new(ui)
                     .striped(true)
-                    .column(egui_extras::Column::auto().at_least(50.0).resizable(true))
+                    .column(egui_extras::Column::auto().at_least(90.0).resizable(true))
                     .column(egui_extras::Column::auto().at_least(50.0).resizable(true))
                     .column(egui_extras::Column::auto().at_least(80.0).resizable(true))
                     .column(egui_extras::Column::auto().at_least(100.0).resizable(true))

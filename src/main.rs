@@ -6,6 +6,7 @@ use tokio::runtime::Builder;
 
 fn main() {
 
+
     //Create the async runtime
     let runtime: tokio::runtime::Runtime = Builder::new_multi_thread()
         .worker_threads(1)
@@ -14,7 +15,7 @@ fn main() {
         .build()
         .expect("Could not startup async runtime!");
 
-    //Create our logging/tracing system. 
+    //Create our logging/tracing system.
     let subscriber = tracing_subscriber::fmt()
         .compact()
         .with_file(true)
@@ -28,11 +29,11 @@ fn main() {
 
     //Start our application
     let mut native_options = eframe::NativeOptions::default();
-    native_options.initial_window_size = Some(eframe::epaint::vec2(600.0, 300.0));
+    native_options.initial_window_size = Some(eframe::epaint::vec2(1400.0, 1150.0));
     native_options.follow_system_theme = false;
     match eframe::run_native("ATTPC Envoy", native_options, Box::new(|cc| Box::new(EnvoyApp::new(cc, runtime)))) {
         Ok(()) => (),
-        Err(e) => println!("Eframe error: {}", e)
+        Err(e) => tracing::error!("Eframe error: {}", e)
     }
 
     return;
