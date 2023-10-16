@@ -1,8 +1,8 @@
 use super::config::Config;
 use super::graph_manager::GraphManager;
+use super::status_manager::StatusManager;
 use crate::envoy::embassy::{Embassy, connect_embassy};
 use crate::envoy::message::EmbassyMessage;
-use crate::envoy::status_manager::StatusManager;
 use crate::envoy::ecc_operation::{ECCStatus, ECCOperation};
 use crate::envoy::surveyor_state::SurveyorState;
 use crate::envoy::constants::NUMBER_OF_MODULES;
@@ -257,12 +257,13 @@ impl eframe::App for EnvoyApp {
                 ui.label(RichText::new("Number of Points Per Graph").size(16.0));
                 ui.add(eframe::egui::DragValue::new(&mut self.max_graph_points).speed(1));
             });
+            ui.separator();
             if *self.graphs.get_max_points() != self.max_graph_points {
                 self.graphs.set_max_points(&self.max_graph_points)
             }
             egui_plot::Plot::new("RatePlot")
-            .view_aspect(5.0)
-            .height(250.0)
+            .view_aspect(6.0)
+            .height(215.0)
             .legend(egui_plot::Legend::default())
             .x_axis_label(RichText::new("Time (s)").size(16.0))
             .y_axis_label(RichText::new("Rate (MB/s)").size(16.0))
