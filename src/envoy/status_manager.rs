@@ -31,7 +31,7 @@ impl StatusManager {
         }
     }
 
-    pub fn handle_messages(&mut self, messages: Vec<EmbassyMessage>) -> Result<(), EmbassyError> {
+    pub fn handle_messages(&mut self, messages: &[EmbassyMessage]) -> Result<(), EmbassyError> {
         for message in messages {
             let module_id = message.id;
             match message.kind {

@@ -31,6 +31,7 @@ impl Default for SurveyorResponse {
 
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct SurveyorConfig {
     id: i32,
     address: String,

@@ -1,4 +1,5 @@
 use super::config::Config;
+use super::graph_manager::GraphManager;
 use crate::envoy::embassy::{Embassy, connect_embassy};
 use crate::envoy::message::EmbassyMessage;
 use crate::envoy::status_manager::StatusManager;
@@ -17,13 +18,15 @@ pub struct EnvoyApp {
     runtime: tokio::runtime::Runtime,
     embassy: Option<Embassy>,
     ecc_handles: Option<Vec<tokio::task::JoinHandle<()>>>,
-    status: StatusManager
+    status: StatusManager,
+    graphs: GraphManager,
+    max_graph_points: usize
 }
 
 impl EnvoyApp {
     /// Startup the application
     pub fn new(_cc: &eframe::CreationContext<'_>, runtime: tokio::runtime::Runtime) -> Self {
-        EnvoyApp { config: Config::new(), runtime, embassy: None, ecc_handles: None, status: StatusManager::new() }
+        EnvoyApp { config: Config::new(), runtime, embassy: None, ecc_handles: None, status: StatusManager::new(), graphs: GraphManager::new(10), max_graph_points: 10 }
     }
 
     fn read_config(&mut self, filepath: &Path) {
@@ -97,10 +100,14 @@ impl EnvoyApp {
         if let Some(embassy) = self.embassy.as_mut() {
             match embassy.poll_messages() {
                 Ok(messages) => {
-                    match self.status.handle_messages(messages) {
+                    match self.status.handle_messages(&messages) {
                         Ok(_) => (),
                         Err(e) => tracing::error!("StatusManager ran into an error handling messages: {}", e)
                     };
+                    match self.graphs.handle_messages(&messages) {
+                        Ok(_) => (),
+                        Err(e) => tracing::error!("GraphManager ran into an error handling messages: {}", e)
+                    }
                 }
                 Err(e) => tracing::error!("Embassy ran into an error polling the envoys: {}", e)
             };
@@ -149,6 +156,7 @@ impl EnvoyApp {
 
     fn start_run(&mut self) {
         let operation = ECCOperation::Start;
+        self.graphs.reset_graphs();
         for id in 0..NUMBER_OF_MODULES {
             match self.embassy.as_mut().unwrap().submit_message(EmbassyMessage::compose_ecc_op(operation.clone().into(), id)) {
                 Ok(()) => (),
@@ -242,14 +250,16 @@ impl eframe::App for EnvoyApp {
         });
 
         eframe::egui::TopBottomPanel::bottom("Graph_Panel").show(ctx, |ui| {
+            let lines = self.graphs.get_line_graphs();
             ui.label(RichText::new("Data Rate Graph").color(Color32::LIGHT_BLUE).size(18.0));
             ui.separator();
-            let points: egui_plot::PlotPoints = (0..1000).map(|i| {
-                let x = i as f64 * 0.01;
-                [x, x.sin()]
-            })
-            .collect();
-            let line_graph = egui_plot::Line::new(points).name("Sine");
+            ui.horizontal(|ui| { 
+                ui.label(RichText::new("Number of Points Per Graph").size(16.0));
+                ui.add(eframe::egui::DragValue::new(&mut self.max_graph_points).speed(1));
+            });
+            if *self.graphs.get_max_points() != self.max_graph_points {
+                self.graphs.set_max_points(&self.max_graph_points)
+            }
             egui_plot::Plot::new("RatePlot")
             .view_aspect(5.0)
             .height(250.0)
@@ -257,7 +267,9 @@ impl eframe::App for EnvoyApp {
             .x_axis_label(RichText::new("Time (s)").size(16.0))
             .y_axis_label(RichText::new("Rate (MB/s)").size(16.0))
             .show(ui, |plot_ui| {
-                plot_ui.line(line_graph);
+                for line  in lines {
+                    plot_ui.line(line);
+                }
             });
             ui.separator();
         });

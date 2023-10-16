@@ -5,6 +5,7 @@ use super::surveyor_envoy::SurveyorResponse;
 const MESSAGE_EMPTY_FIELD: &str = "None";
 
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 pub enum MessageKind {
     ECCOperation,
     ECCStatus,
@@ -73,6 +74,16 @@ impl TryInto<ECCStatusResponse> for EmbassyMessage {
     }
 }
 
+impl TryInto<ECCStatusResponse> for &EmbassyMessage {
+    type Error = EmbassyError;
+    fn try_into(self) -> Result<ECCStatusResponse, Self::Error> {
+        match self.kind {
+            MessageKind::ECCStatus => Ok(serde_yaml::from_str::<ECCStatusResponse>(&self.response)?),
+            _ => Err(Self::Error::MessageKindError(MessageKind::ECCStatus, self.kind.clone()))
+        }
+    }
+}
+
 impl TryInto<ECCOperationResponse> for EmbassyMessage {
     type Error = EmbassyError;
     fn try_into(self) -> Result<ECCOperationResponse, Self::Error> {
@@ -83,12 +94,32 @@ impl TryInto<ECCOperationResponse> for EmbassyMessage {
     }
 }
 
+impl TryInto<ECCOperationResponse> for &EmbassyMessage {
+    type Error = EmbassyError;
+    fn try_into(self) -> Result<ECCOperationResponse, Self::Error> {
+        match self.kind {
+            MessageKind::ECCOperation => Ok(serde_yaml::from_str::<ECCOperationResponse>(&self.response)?),
+            _ => Err(Self::Error::MessageKindError(MessageKind::ECCOperation, self.kind.clone()))
+        }
+    }
+}
+
 impl TryInto<SurveyorResponse> for EmbassyMessage {
     type Error = EmbassyError;
     fn try_into(self) -> Result<SurveyorResponse, Self::Error> {
         match self.kind {
             MessageKind::Surveyor => Ok(serde_yaml::from_str::<SurveyorResponse>(&self.response)?),
             _ => Err(Self::Error::MessageKindError(MessageKind::Surveyor, self.kind))
+        }
+    }
+}
+
+impl TryInto<SurveyorResponse> for &EmbassyMessage {
+    type Error = EmbassyError;
+    fn try_into(self) -> Result<SurveyorResponse, Self::Error> {
+        match self.kind {
+            MessageKind::Surveyor => Ok(serde_yaml::from_str::<SurveyorResponse>(&self.response)?),
+            _ => Err(Self::Error::MessageKindError(MessageKind::Surveyor, self.kind.clone()))
         }
     }
 }
