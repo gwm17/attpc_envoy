@@ -3,7 +3,7 @@ use crate::envoy::ecc_operation::ECCStatus;
 use crate::envoy::surveyor_envoy::SurveyorResponse;
 use crate::envoy::message::{EmbassyMessage, MessageKind};
 use crate::envoy::error::EmbassyError;
-use crate::envoy::constants::NUMBER_OF_MODULES;
+use crate::envoy::constants::{NUMBER_OF_MODULES, MUTANT_ID};
 use crate::envoy::surveyor_state::SurveyorState;
 
 
@@ -90,6 +90,27 @@ impl StatusManager {
         match sys_stat {
             ECCStatus::Running => true,
             _ => false
+        }
+    }
+
+    pub fn is_all_but_mutant_running(&self) -> bool {
+        let sys_status = self.ecc_status[0].state;
+        for status in self.ecc_status[..((NUMBER_OF_MODULES-1) as usize)].iter() {
+            if sys_status != status.state {
+                return false;
+            }
+        }
+
+        match ECCStatus::from(sys_status) {
+            ECCStatus::Running => return true,
+            _ => return false
+        }
+    }
+
+    pub fn is_mutant_stopped(&self) -> bool {
+        match ECCStatus::from(self.ecc_status[MUTANT_ID as usize].state) {
+            ECCStatus::Running => return false,
+            _ => return true
         }
     }
 

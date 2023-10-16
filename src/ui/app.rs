@@ -5,7 +5,9 @@ use crate::envoy::embassy::{Embassy, connect_embassy};
 use crate::envoy::message::EmbassyMessage;
 use crate::envoy::ecc_operation::{ECCStatus, ECCOperation};
 use crate::envoy::surveyor_state::SurveyorState;
-use crate::envoy::constants::NUMBER_OF_MODULES;
+use crate::envoy::constants::{NUMBER_OF_MODULES, MUTANT_ID};
+use crate::command::command::{execute, CommandName, CommandStatus};
+
 use std::path::Path;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -155,23 +157,77 @@ impl EnvoyApp {
     }
 
     fn start_run(&mut self) {
+        //Order is all cobos, then mutant
         let operation = ECCOperation::Start;
         self.graphs.reset_graphs();
-        for id in 0..NUMBER_OF_MODULES {
+
+        //Check the run number status using the shell scripting engine
+        match execute(CommandName::CheckRunExists, self.status.get_surveyor_status(), &self.config.experiment, &self.config.run_number) {
+            CommandStatus::Success => {
+                tracing::warn!("Tried to start a run with a run number that was already used! Either delete the extant data or change the run number!");
+                return;
+            }
+            CommandStatus::Failure => (),
+            CommandStatus::CouldNotExecute => return
+        }
+
+        //Start CoBos
+        for id in 0..(NUMBER_OF_MODULES-1) {
             match self.embassy.as_mut().unwrap().submit_message(EmbassyMessage::compose_ecc_op(operation.clone().into(), id)) {
                 Ok(()) => (),
                 Err(e) => tracing::error!("Embassy had an error sending a start run message: {}", e)
             }
         }
+
+        //Wait for good CoBo status
+        loop {
+            if self.status.is_all_but_mutant_running() {
+                break;
+            }
+        }
+
+        //Start mutant
+        match self.embassy.as_mut().unwrap().submit_message(EmbassyMessage::compose_ecc_op(operation.clone().into(), MUTANT_ID)) {
+            Ok(()) => (),
+            Err(e) => tracing::error!("Embassy had an error sending a start run message: {}", e)
+        }
     }
 
     fn stop_run(&mut self) {
+        //Order is mutant, all cobos
         let operation = ECCOperation::Stop;
-        for id in 0..12 {
+
+        //Stop the mutant
+        match self.embassy.as_mut().unwrap().submit_message(EmbassyMessage::compose_ecc_op(operation.clone().into(), MUTANT_ID)) {
+            Ok(()) => (),
+            Err(e) => tracing::error!("Embassy had an error sending a stop run message: {}", e)
+        }
+
+        //Wait for mutant to stop 
+        loop {
+            if self.status.is_mutant_stopped() {
+                break;
+            }
+        }
+
+        //Stop all of the CoBos
+        for id in 0..(NUMBER_OF_MODULES-1) {
             match self.embassy.as_mut().unwrap().submit_message(EmbassyMessage::compose_ecc_op(operation.clone().into(), id)) {
                 Ok(()) => (),
                 Err(e) => tracing::error!("Embassy had an error sending a start run message: {}", e)
             }
+        }
+
+        match execute(CommandName::MoveGrawFiles, self.status.get_surveyor_status(), &self.config.experiment, &self.config.run_number) {
+            CommandStatus::Success => (),
+            CommandStatus::Failure => tracing::error!("Unable to move the graw files after the stop run signal!"),
+            CommandStatus::CouldNotExecute => ()
+        }
+
+        match execute(CommandName::BackupConfig, self.status.get_surveyor_status(), &self.config.experiment, &self.config.run_number) {
+            CommandStatus::Success => (),
+            CommandStatus::Failure => tracing::error!("Could not backup config files after the stop run signal"),
+            CommandStatus::CouldNotExecute => (),
         }
     }
 }
@@ -250,6 +306,7 @@ impl eframe::App for EnvoyApp {
         });
 
         eframe::egui::TopBottomPanel::bottom("Graph_Panel").show(ctx, |ui| {
+            ui.separator();
             let lines = self.graphs.get_line_graphs();
             ui.label(RichText::new("Data Rate Graph").color(Color32::LIGHT_BLUE).size(18.0));
             ui.separator();
@@ -263,7 +320,7 @@ impl eframe::App for EnvoyApp {
             }
             egui_plot::Plot::new("RatePlot")
             .view_aspect(6.0)
-            .height(215.0)
+            .height(200.0)
             .legend(egui_plot::Legend::default())
             .x_axis_label(RichText::new("Time (s)").size(16.0))
             .y_axis_label(RichText::new("Rate (MB/s)").size(16.0))

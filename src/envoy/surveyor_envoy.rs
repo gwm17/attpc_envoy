@@ -14,6 +14,7 @@ const SURVEYOR_URL_PORT: i32 = 8081;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SurveyorResponse {
     pub state: i32,
+    pub address: String,
     pub location: String,
     pub disk_status: String,
     pub percent_used: String,
@@ -25,7 +26,7 @@ pub struct SurveyorResponse {
 
 impl Default for SurveyorResponse {
     fn default() -> Self {
-        Self { state: 0, location: String::from("N/A"), disk_status: String::from("N/A"), percent_used: String::from("N/A"), disk_space: 0, files: 0, bytes_used: 0, data_rate: 0.0 }
+        Self { state: 0, address: String::from("N/A"), location: String::from("N/A"), disk_status: String::from("N/A"), percent_used: String::from("N/A"), disk_space: 0, files: 0, bytes_used: 0, data_rate: 0.0 }
     }
 }
 
@@ -119,6 +120,7 @@ impl SurveyorEnvoy {
         if status.state == 0 {
             return Ok(EmbassyMessage::compose_surveyor_response(serde_yaml::to_string(&status)?, self.config.id))
         }
+        status.address = self.config.address.clone();
         status.location = String::from(lines[1]);
         let line_entries: Vec<&str> = lines[3].split_whitespace().collect();
         status.percent_used = String::from(line_entries[4]);
