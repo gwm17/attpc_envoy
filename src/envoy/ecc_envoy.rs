@@ -27,6 +27,8 @@ const ECC_SOAP_FOOTER: &str = r#"
     </SOAP-ENV:Envelope>
 "#;
 
+/// Response type for ECC Operations (transitions)
+/// Native format is XML
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ECCOperationResponse {
     #[serde(rename="ErrorCode")]
@@ -37,6 +39,8 @@ pub struct ECCOperationResponse {
     pub text: String
 }
 
+/// Response type for ECC status query
+/// Native format is XML
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
 pub struct ECCStatusResponse {
     #[serde(rename="ErrorCode")]
@@ -123,6 +127,11 @@ impl ECCConfig {
     }
 }
 
+/// # ECCEnvoy
+/// The structure encompassing an async task associated with the ECC Server system.
+/// ECCEnvoys have two modes, status check and transition. Transition envoys tell the server 
+/// when to load/unload configuration data. Status check envoys simply check the status
+/// of the server every few seconds.
 #[derive(Debug)]
 pub struct ECCEnvoy {
     config: ECCConfig,
@@ -134,7 +143,7 @@ pub struct ECCEnvoy {
 
 impl ECCEnvoy {
     pub fn new(config: ECCConfig, rx: mpsc::Receiver<EmbassyMessage>, tx: mpsc::Sender<EmbassyMessage>, cancel: broadcast::Receiver<EmbassyMessage>) -> Result<Self, EnvoyError> {
-        //3min default timeouts
+        //10s default timeouts
         let connection_out = Duration::from_secs(10);
         let req_timeout = Duration::from_secs(10);
 
@@ -146,6 +155,9 @@ impl ECCEnvoy {
         return Ok(Self { config, connection: client, incoming: rx, outgoing: tx, cancel});
     }
 
+    /// This one of the core task loops for an ECCEnvoy. Waits for a
+    /// message from the embassy to transition the configuration of 
+    /// an ECC Server.
     pub async fn wait_for_transition(&mut self) -> Result<(), EnvoyError> {
         loop {
             tokio::select! {
@@ -165,6 +177,8 @@ impl ECCEnvoy {
         }
     }
 
+    /// This one of the core task loops for an ECCEnvoy. Every two seconds check the
+    /// status of the ECC Server. Uses tokio::select! to handle cancelling.
     pub async fn wait_check_status(&mut self) -> Result<(), EnvoyError> {
         loop {
             tokio::select! {

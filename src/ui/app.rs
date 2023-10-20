@@ -14,23 +14,27 @@ use std::io::{Read, Write};
 use eframe::egui::{RichText, Color32};
 use eframe::egui::widgets::Button;
 
+/// # EnvoyApp
+/// EnvoyApp implements the eframe::App trait, and holds most of the controlling functionality of the program,
+/// including the tokio runtime and the embassy hub.
 #[derive(Debug)]
 pub struct EnvoyApp {
     config: Config,
     runtime: tokio::runtime::Runtime,
     embassy: Option<Embassy>,
-    ecc_handles: Option<Vec<tokio::task::JoinHandle<()>>>,
+    envoy_handles: Option<Vec<tokio::task::JoinHandle<()>>>,
     status: StatusManager,
     graphs: GraphManager,
     max_graph_points: usize
 }
 
 impl EnvoyApp {
-    /// Startup the application
+    /// Create an app from a tokio runtime and eframe context
     pub fn new(_cc: &eframe::CreationContext<'_>, runtime: tokio::runtime::Runtime) -> Self {
-        EnvoyApp { config: Config::new(), runtime, embassy: None, ecc_handles: None, status: StatusManager::new(), graphs: GraphManager::new(10), max_graph_points: 10 }
+        EnvoyApp { config: Config::new(), runtime, embassy: None, envoy_handles: None, status: StatusManager::new(), graphs: GraphManager::new(10), max_graph_points: 10 }
     }
 
+    /// Read in a config from a YAML file at the filepath
     fn read_config(&mut self, filepath: &Path) {
         if let Ok(mut file) = File::open(filepath) {
             let mut yaml_str = String::new();
@@ -53,6 +57,7 @@ impl EnvoyApp {
         }
     }
 
+    /// Write the current config to a YAML file at the filepath
     fn write_config(&mut self, filepath: &Path) {
         if let Ok(mut file) = File::create(filepath) {
             let yaml_str = match serde_yaml::to_string::<Config>(&self.config) {
@@ -72,20 +77,23 @@ impl EnvoyApp {
         }
     }
 
+    /// Create all of the envoys, the embassy, and start the async tasks
     fn connect(&mut self) {
-        if self.embassy.is_none() && self.ecc_handles.is_none() {
-            let (em, ecc_handles) = connect_embassy(&mut self.runtime, &self.config.experiment);
-            tracing::info!("Connnected with {} tasks spawned", ecc_handles.len());
+        if self.embassy.is_none() && self.envoy_handles.is_none() {
+            let (em, handles) = connect_embassy(&mut self.runtime, &self.config.experiment);
+            tracing::info!("Connnected with {} tasks spawned", handles.len());
             self.embassy = Some(em);
-            self.ecc_handles = Some(ecc_handles);
+            self.envoy_handles = Some(handles);
         }
     }
 
+    /// Emit a cancel signal to all of the envoys and destroy the envoys and the embassy
+    /// This can cause a small blocking period while waiting for all of the tasks to join back.
     fn disconnect(&mut self) {
         if self.embassy.is_some() {
             let mut embassy = self.embassy.take().expect("Literally cant happen");
             embassy.shutdown();
-            let handles = self.ecc_handles.take().expect("Handles did not exist at disconnect?");
+            let handles = self.envoy_handles.take().expect("Handles did not exist at disconnect?");
             for handle in handles {
                 match self.runtime.block_on(handle) {
                     Ok(()) => (),
@@ -98,6 +106,8 @@ impl EnvoyApp {
         }
     }
 
+    /// Read and handle any messages the embassy recieved from the envoys. Messages are sent
+    /// to observer like structures (the StatusManager and GraphManager)
     fn poll_embassy(&mut self) {
         if let Some(embassy) = self.embassy.as_mut() {
             match embassy.poll_messages() {
@@ -116,6 +126,9 @@ impl EnvoyApp {
         }
     }
 
+    /// Send a transition command to some of the ECC operation envoys. Transitions are either forward or backward 
+    /// depending on the is_forward flag. What type of transition is determined by the current state of the envoy as last recorded
+    /// by the status envoy.
     fn transition_ecc(&mut self, ids: Vec<usize>, is_forward: bool) {
         if ids.len() == 0 {
             return;
@@ -146,16 +159,22 @@ impl EnvoyApp {
         }
     }
 
+    /// Transition all of the envoys forward (Progress)
     fn forward_transition_all(&mut self) {
         let ids: Vec<usize> = (0..(NUMBER_OF_MODULES as usize)).collect();
         self.transition_ecc(ids, true)
     }
 
+    /// Transition all of the envoys backward (Regress)
     fn backward_transition_all(&mut self) {
         let ids: Vec<usize> = (0..(NUMBER_OF_MODULES as usize)).collect();
         self.transition_ecc(ids, false)
     }
 
+    /// Send a start run command to all of the envoys.
+    /// Note that several important things must happen here. First a command is sent to make sure that 
+    /// the run number was not already used. Then, the CoBos must start, and only once all CoBos are running,
+    /// does the Mutant start. The rate graphs are also reset.
     fn start_run(&mut self) {
         //Order is all cobos, then mutant
         let operation = ECCOperation::Start;
@@ -193,6 +212,10 @@ impl EnvoyApp {
         }
     }
 
+    /// Send a stop run command to all of the envoys.
+    /// Note that several important things must happen here. First the Mutant is stopped. Then, only after the Mutant has stopped,
+    /// all of the Cobos are told to stop. After the stop command is issued, a command is sent to move all of the data to a run specific location,
+    /// as well as a command to back up the ECC configuration files.
     fn stop_run(&mut self) {
         //Order is mutant, all cobos
         let operation = ECCOperation::Stop;
@@ -233,11 +256,13 @@ impl EnvoyApp {
 }
 
 impl eframe::App for EnvoyApp {
+
     fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
 
         //Probably don't want to poll every frame, but as a test...
         self.poll_embassy();
 
+        // The top panel, contains the specific configuration
         eframe::egui::TopBottomPanel::top("Config_Panel")
         .show(ctx, |ui| {
 
@@ -305,6 +330,7 @@ impl eframe::App for EnvoyApp {
             ui.separator();
         });
 
+        // Bottom panel, contains the rate graph
         eframe::egui::TopBottomPanel::bottom("Graph_Panel").show(ctx, |ui| {
             ui.separator();
             let lines = self.graphs.get_line_graphs();
@@ -332,6 +358,7 @@ impl eframe::App for EnvoyApp {
             ui.separator();
         });
 
+        //Side panel showing all ECC Envoy controls
         eframe::egui::SidePanel::left("ECC_Panel")
         .show(ctx, |ui| {
             ui.label(RichText::new("ECC Envoy Status/Control").color(Color32::LIGHT_BLUE).size(18.0));
@@ -402,6 +429,7 @@ impl eframe::App for EnvoyApp {
             self.transition_ecc(backward_transitions, false);
         });
 
+        //Central panel showing Data router info. Use central to allow for dynamic resizing of the window.
         eframe::egui::CentralPanel::default()
         .show(ctx,|ui| {
             ui.label(RichText::new("Data Router Status").color(Color32::LIGHT_BLUE).size(18.0));

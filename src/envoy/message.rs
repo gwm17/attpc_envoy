@@ -26,6 +26,11 @@ impl std::fmt::Display for MessageKind {
     }
 }
 
+/// # EmbassyMessage
+/// A unified message type to simplify the transfer of data from the various types of envoys to 
+/// the embassy and the embassy to the UI.
+/// Typically the data contained is some form of xml, json, or yaml string. Can be cast to specific message
+/// types using the TryFrom trait.
 #[derive(Debug, Clone)]
 pub struct EmbassyMessage {
     pub kind: MessageKind,

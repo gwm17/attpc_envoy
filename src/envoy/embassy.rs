@@ -6,6 +6,11 @@ use std::collections::HashMap;
 use tokio::sync::mpsc;
 use tokio::sync::broadcast;
 
+/// # Embassy
+/// The embassy is the bridge between the async envoys and
+/// the synchronous UI-application. The embassy is essentially a
+/// container of channels used to communicate back-and-forth between these
+/// two runtimes. 
 #[derive(Debug)]
 pub struct Embassy {
     ecc_senders: HashMap<i32, mpsc::Sender<EmbassyMessage>>,
@@ -48,6 +53,7 @@ impl Embassy {
 
 }
 
+/// This is the function to create and connect an Embassy as well as all of the envoys.
 pub fn connect_embassy(runtime: &mut tokio::runtime::Runtime, experiment: &str) -> (Embassy, Vec<tokio::task::JoinHandle<()>>) {
     let (envoy_tx, embassy_rx) = mpsc::channel::<EmbassyMessage>(33);
     let (cancel_tx, _) = broadcast::channel::<EmbassyMessage>(10);

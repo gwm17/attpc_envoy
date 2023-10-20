@@ -9,6 +9,11 @@ pub enum CommandStatus {
     CouldNotExecute
 }
 
+/// # CommandName
+/// CommandNames are tied to one of the functions which is callable by the execute function in 
+/// this module. All commands must have the same function signature. This allows for relatively straightforward
+/// command sending from the UI. Typically these commands wrap the std::process::Command object which is used to
+/// run a shell script on a remote machine. Think of this like a *really* primitive scripting engine.
 #[derive(Debug, Clone)]
 pub enum CommandName {
     MoveGrawFiles,
@@ -36,6 +41,8 @@ impl CommandName {
     }
 }
 
+/// This is the function used by the rest of the crate. Pass in a CommandName with the required data and recieve a command status 
+/// based on the behavior of the command.
 pub fn execute(command: CommandName, surveyor_data: &[SurveyorResponse], experiment: &str, run_number: &i32) -> CommandStatus {
     match command.get_function()(surveyor_data, experiment, run_number) {
         Ok(stat) => return stat,
@@ -46,6 +53,7 @@ pub fn execute(command: CommandName, surveyor_data: &[SurveyorResponse], experim
     }
 }
 
+/// Move the graw data files after a run is stopped
 pub fn move_graw_files(surveyor_data: &[SurveyorResponse], experiment: &str, run_number: &i32) -> Result<CommandStatus, std::io::Error> {
     let sub_command = format!("{SCRIPT_DIR}move_graw.sh");
     let mut ret_stat = CommandStatus::Success;
@@ -65,6 +73,7 @@ pub fn move_graw_files(surveyor_data: &[SurveyorResponse], experiment: &str, run
     Ok(ret_stat)
 }
 
+/// Back up the ECC configuration files after a run is stopped
 pub fn backup_config(_: &[SurveyorResponse], experiment: &str, run_number: &i32) -> Result<CommandStatus, std::io::Error> {
     let sub_command = format!("{SCRIPT_DIR}backup_configs.sh");
     let output = Command::new("zsh")
@@ -83,6 +92,7 @@ pub fn backup_config(_: &[SurveyorResponse], experiment: &str, run_number: &i32)
     }
 }
 
+/// Check to see if a run number was already used before starting a run
 pub fn check_run_exists(surveyor_data: &[SurveyorResponse], experiment: &str, run_number: &i32) -> Result<CommandStatus, std::io::Error> {
     let sub_command = format!("{SCRIPT_DIR}test_graw.sh");
     let output = Command::new("zsh")

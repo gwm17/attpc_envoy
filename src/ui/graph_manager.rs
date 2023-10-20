@@ -4,6 +4,10 @@ use crate::envoy::error::EmbassyError;
 use crate::envoy::constants::NUMBER_OF_MODULES;
 use crate::envoy::surveyor_envoy::SurveyorResponse;
 
+
+/// # Graph Manager
+/// Structure used to manage RateGraphs for the UI. Acts in observer-like role, reading a list of messages
+/// from the embassy and trasmitting relevant data to the graph of interest.
 #[derive(Debug)]
 pub struct GraphManager {
     graphs: Vec<RateGraph>,
@@ -19,6 +23,8 @@ impl GraphManager {
         return Self { graphs, max_points }
     }
 
+    /// Read messages from the embassy, looking for SurveyorResponses. If one is found, send
+    /// the rate value to the appropriate graph
     pub fn handle_messages(&mut self, messages: &[EmbassyMessage]) -> Result<(), EmbassyError> {
 
         for message in messages {
@@ -36,6 +42,7 @@ impl GraphManager {
         Ok(())
     }
 
+    /// Get all of the graphs as egui_plot::Lines
     pub fn get_line_graphs(&self) -> Vec<egui_plot::Line> {
         self.graphs.iter()
             .map(|g| {

@@ -7,7 +7,6 @@ use tokio::runtime::Builder;
 
 fn main() {
 
-
     //Create the async runtime
     let runtime: tokio::runtime::Runtime = Builder::new_multi_thread()
         .worker_threads(1)

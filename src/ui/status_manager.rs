@@ -6,7 +6,11 @@ use crate::envoy::error::EmbassyError;
 use crate::envoy::constants::{NUMBER_OF_MODULES, MUTANT_ID};
 use crate::envoy::surveyor_state::SurveyorState;
 
-
+/// # Status Manager
+/// Structure used to manage the status of all of the envoys. We need a centralized location
+/// because we also want to express the status of the entire system, not just the individuals.
+/// It has observer-like behavior where it reads a list of messages from the embassy and handles
+/// the information appropriately.
 #[derive(Debug)]
 pub struct StatusManager {
     ecc_status: Vec<ECCStatusResponse>,
@@ -31,6 +35,8 @@ impl StatusManager {
         }
     }
 
+    /// Read messages from the embassy and look for ECC or Surveyor status respsonses.
+    /// Set the status of the given module to match the message.
     pub fn handle_messages(&mut self, messages: &[EmbassyMessage]) -> Result<(), EmbassyError> {
         for message in messages {
             let module_id = message.id;
@@ -67,6 +73,8 @@ impl StatusManager {
         &self.ecc_status
     }
 
+    /// Retrieve the system status. System status matches the envoy status if all 
+    /// envoys have the same status. If not, the system status is Inconsistent.
     pub fn get_system_ecc_status(&self) -> ECCStatus {
         let sys_status = self.ecc_status[0].state;
         for status in self.ecc_status.iter() {
@@ -118,6 +126,8 @@ impl StatusManager {
         &self.surveyor_status
     }
 
+    /// Retrieve the system status. System status matches the envoy status if all 
+    /// envoys have the same status. If not, the system status is Inconsistent.
     pub fn get_surveyor_system_status(&self) -> SurveyorState {
         let sys_status = self.surveyor_status[0].state;
         for status in self.surveyor_status.iter() {

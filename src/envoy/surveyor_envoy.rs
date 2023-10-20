@@ -10,7 +10,10 @@ use serde::{Deserialize, Serialize};
 
 const SURVEYOR_URL_PORT: i32 = 8081;
 
-
+/// # SurveyorResponse
+/// The message delivered from the SurveyorEnvoy
+/// Contains a lot of data from a lot of different pieces of the 
+/// filesystem on which the specific data router is running
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SurveyorResponse {
     pub state: i32,
@@ -56,6 +59,10 @@ impl SurveyorConfig {
     }
 }
 
+/// # SurveyorEnvoy
+/// The structure encompassing an async task associated with the Surveyor/Data Router system.
+/// At the moment, SurveyorEnvoys can only check the status of the DataRouter as no commands can
+/// be sent to them. But maybe in the future this will change.
 #[derive(Debug)]
 pub struct SurveyorEnvoy {
     config: SurveyorConfig,
@@ -68,7 +75,7 @@ pub struct SurveyorEnvoy {
 impl SurveyorEnvoy {
 
     pub fn new(config: SurveyorConfig, tx: mpsc::Sender<EmbassyMessage>, cancel: broadcast::Receiver<EmbassyMessage>) -> Result<Self, EnvoyError> {
-        //3min default timeouts
+        //10s default timeouts
         let connection_out = Duration::from_secs(10);
         let req_timeout = Duration::from_secs(10);
 
@@ -80,6 +87,8 @@ impl SurveyorEnvoy {
         return Ok(Self { config, connection: client, outgoing: tx, cancel, last_bytes: 0});
     }
 
+    /// This is the core task loop for a SurveyorEnvoy. Every two seconds check the
+    /// status of the Surveyor. Uses tokio::select! to handle cancelling.
     pub async fn wait_check_status(&mut self) -> Result<(), EnvoyError> {
         loop {
             tokio::select! {
@@ -107,6 +116,7 @@ impl SurveyorEnvoy {
         Ok(parsed_response)
     }
 
+    /// Parses the html response.
     async fn parse_response(&mut self, response: Response) -> Result<EmbassyMessage, EnvoyError> {
         let response_text = response.text().await?;
         let mut status = SurveyorResponse::default();
@@ -154,6 +164,7 @@ impl SurveyorEnvoy {
 
 }
 
+/// Function to create all of the SurveyorEnvoys and spawn their tatsks. Returns handles to the tasks.
 pub fn startup_surveyor_envoys(runtime: &mut tokio::runtime::Runtime, surveyor_tx: &mpsc::Sender<EmbassyMessage>, cancel: &broadcast::Sender<EmbassyMessage>) -> Vec<JoinHandle<()>> {
     let mut handles: Vec<JoinHandle<()>> = vec![];
 
