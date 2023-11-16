@@ -432,6 +432,7 @@ impl eframe::App for EnvoyApp {
         //Central panel showing Data router info. Use central to allow for dynamic resizing of the window.
         eframe::egui::CentralPanel::default()
         .show(ctx,|ui| {
+
             ui.label(RichText::new("Data Router Status").color(Color32::LIGHT_BLUE).size(18.0));
             ui.label(RichText::new(format!("System Status: {}", self.status.get_surveyor_system_status())).color(Color32::GOLD).size(16.0));
             ui.separator();
@@ -518,5 +519,6 @@ impl eframe::App for EnvoyApp {
         
         
 
+        ctx.request_repaint_after(std::time::Duration::from_secs(1));
     }
 }

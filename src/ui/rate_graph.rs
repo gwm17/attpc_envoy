@@ -27,7 +27,7 @@ impl RateGraph {
             self.points.pop_front();
         }
         let current_time = self.last_time + self.time_increment;
-        self.points.push_back([rate, current_time]);
+        self.points.push_back([current_time, rate]);
         self.last_time = current_time;
     }
 

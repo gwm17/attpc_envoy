@@ -44,6 +44,9 @@ pub enum EnvoyError {
     MessageParseError(serde_yaml::Error),
     StringToIntError(std::num::ParseIntError),
     StringToFloatError(std::num::ParseFloatError),
+    XMLError(quick_xml::Error),
+    XMLUtf8Error(std::string::FromUtf8Error),
+    XMLConversionError,
 }
 
 impl From<reqwest::Error> for EnvoyError {
@@ -88,6 +91,18 @@ impl From<std::num::ParseFloatError> for EnvoyError {
     }
 }
 
+impl From<quick_xml::Error> for EnvoyError {
+    fn from(value: quick_xml::Error) -> Self {
+        Self::XMLError(value)
+    }
+}
+
+impl From<std::string::FromUtf8Error> for EnvoyError {
+    fn from(value: std::string::FromUtf8Error) -> Self {
+        Self::XMLUtf8Error(value)
+    }
+}
+
 impl std::fmt::Display for EnvoyError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -97,7 +112,10 @@ impl std::fmt::Display for EnvoyError {
             Self::StatusError(e) => write!(f, "Envoy recieved status error: {e}"),
             Self::SendError(e) => write!(f, "Envoy failed to send a message: {e}"),
             Self::StringToIntError(e) => write!(f, "Envoy failed to parse string to integer: {e}"),
-            Self::StringToFloatError(e) => write!(f, "Envoy failed to parse string to float: {e}")
+            Self::StringToFloatError(e) => write!(f, "Envoy failed to parse string to float: {e}"),
+            Self::XMLError(e) =>  write!(f, "Envoy failed to parse XML body: {e}"),
+            Self::XMLUtf8Error(e) => write!(f, "Envoy failed to convert XML to String: {e}"),
+            Self::XMLConversionError => write!(f, "Envoy failed to convert XML data!")
         }
     }
 }

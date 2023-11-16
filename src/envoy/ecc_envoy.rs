@@ -29,7 +29,7 @@ const ECC_SOAP_FOOTER: &str = r#"
 
 /// Response type for ECC Operations (transitions)
 /// Native format is XML
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Default, Clone)]
 pub struct ECCOperationResponse {
     #[serde(rename="ErrorCode")]
     pub error_code: i32,
@@ -223,14 +223,94 @@ impl ECCEnvoy {
 
     async fn parse_ecc_operation_response(&self, response: Response) -> Result<EmbassyMessage, EnvoyError> {
         let text = response.text().await?;
-        let parsed = quick_xml::de::from_str::<ECCOperationResponse>(&text).expect("Bad ResponseText format!");
+        let mut reader = quick_xml::Reader::from_str(&text);
+        let mut parsed = ECCOperationResponse::default();
+
+        reader.read_event()?; //Opening
+        reader.read_event()?; //Junk
+        reader.read_event()?; //SOAP Decl
+        reader.read_event()?; //SOAP Body
+        reader.read_event()?; //ECC
+        reader.read_event()?; //ErrorCode start tag
+        let event = reader.read_event()?; //ErrorCode payload
+        parsed.error_code = match event {
+            quick_xml::events::Event::Text(t) => String::from_utf8(t.to_vec())?.parse()?,
+            _ => {
+                return Err(EnvoyError::XMLConversionError)
+            }
+        };
+        reader.read_event()?; //ErrorCode end tag
+        reader.read_event()?; //ErrorMesage start tag
+        let event = reader.read_event()?; //ErrorMessage payload or end tag
+        let mut is_msg = true;
+        parsed.error_message = match event {
+            quick_xml::events::Event::Text(t) => String::from_utf8(t.to_vec())?,
+            _ => {
+                is_msg = false;
+                String::from("")
+            }
+        };
+        if is_msg {
+            reader.read_event()?; //ErrorMessage end tag
+        }
+        reader.read_event()?; //Text start tag
+        let event = reader.read_event()?; //Text payload
+        parsed.text = match event {
+            quick_xml::events::Event::Text(t) => String::from_utf8(t.to_vec())?,
+            _ => return Err(EnvoyError::XMLConversionError)
+        };
+
         Ok(EmbassyMessage::compose_ecc_response(serde_yaml::to_string(&parsed)?, self.config.id))
     }
 
     async fn parse_ecc_status_response(&self, response: Response) -> Result<EmbassyMessage, EnvoyError> {
         let text = response.text().await?;
-        let parsed = quick_xml::de::from_str::<ECCStatusResponse>(&text).expect("Bad ResponseState format!");
-        Ok(EmbassyMessage::compose_ecc_status(serde_yaml::to_string(&parsed)?, self.config.id))
+        let mut reader = quick_xml::Reader::from_str(&text);
+        let mut parsed: ECCStatusResponse = ECCStatusResponse::default();
+
+        reader.read_event()?; //Opening
+        reader.read_event()?; //Junk
+        reader.read_event()?; //SOAP Decl
+        reader.read_event()?; //SOAP Body
+        reader.read_event()?; //ECC
+        reader.read_event()?; //ErrorCode start tag
+        let event = reader.read_event()?; //ErrorCode payload
+        parsed.error_code = match event {
+            quick_xml::events::Event::Text(t) => String::from_utf8(t.to_vec())?.parse()?,
+            _ => {
+                return Err(EnvoyError::XMLConversionError)
+            }
+        };
+        reader.read_event()?; //ErrorCode end tag
+        reader.read_event()?; //ErrorMesage start tag
+        let event = reader.read_event()?; //ErrorMessage payload or end tag
+        let mut is_msg = true;
+        parsed.error_message = match event {
+            quick_xml::events::Event::Text(t) => String::from_utf8(t.to_vec())?,
+            _ => {
+                is_msg = false;
+                String::from("")
+            }
+        };
+        if is_msg {
+            reader.read_event()?; //ErrorMessage end tag
+        }
+        reader.read_event()?; //State start tag
+        let event = reader.read_event()?; //State payload
+        parsed.state = match event {
+            quick_xml::events::Event::Text(t) => String::from_utf8(t.to_vec())?.parse()?,
+            _ => return Err(EnvoyError::XMLConversionError)
+        };
+        reader.read_event()?; //State end tag
+        reader.read_event()?; //Transition start tag
+        let event = reader.read_event()?; //Transition payload
+        parsed.transition = match event {
+            quick_xml::events::Event::Text(t) => String::from_utf8(t.to_vec())?.parse()?,
+            _ => return Err(EnvoyError::XMLConversionError)
+        };
+
+        let status_response = EmbassyMessage::compose_ecc_status(serde_yaml::to_string(&parsed)?, self.config.id);
+        Ok(status_response)
     }
 
     fn compose_ecc_transition_request(&self, message: EmbassyMessage) -> Result<String, EnvoyError> {
