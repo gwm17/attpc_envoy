@@ -385,7 +385,7 @@ impl eframe::App for EnvoyApp {
                 egui_extras::TableBuilder::new(ui)
                     .striped(true)
                     .column(egui_extras::Column::auto().at_least(150.0).resizable(true))
-                    .column(egui_extras::Column::auto().at_least(50.0).resizable(true))
+                    .column(egui_extras::Column::auto().at_least(100.0).resizable(true))
                     .column(egui_extras::Column::auto().at_least(50.0).resizable(true))
                     .column(egui_extras::Column::auto().at_least(50.0).resizable(true))
                     .header(40.0, |mut header| {
