@@ -55,7 +55,7 @@ impl SurveyorConfig {
     }
 
     fn url(address: &str) -> String {
-        format!("http://{address}:{SURVEYOR_URL_PORT}")
+        format!("http://{address}:{SURVEYOR_URL_PORT}/~attpc/surveyor.html")
     }
 }
 
@@ -98,7 +98,10 @@ impl SurveyorEnvoy {
 
                 _ = tokio::time::sleep(Duration::from_secs(2)) => {
                     if let Ok(response) = self.submit_check_status().await {
-                        self.outgoing.send(response).await?
+                        match response {
+                            Some(resp) => self.outgoing.send(resp).await?,
+                            None => ()
+                        }
                     } else {
                         let message = EmbassyMessage::compose_surveyor_response(serde_yaml::to_string(&SurveyorResponse::default())?, self.config.id);
                         self.outgoing.send(message).await?
@@ -108,7 +111,7 @@ impl SurveyorEnvoy {
         }
     }
 
-    async fn submit_check_status(&mut self) -> Result<EmbassyMessage, EnvoyError> {
+    async fn submit_check_status(&mut self) -> Result<Option<EmbassyMessage>, EnvoyError> {
         let response = self.connection
                                 .get(&self.config.url)
                                 .send().await?;
@@ -117,18 +120,18 @@ impl SurveyorEnvoy {
     }
 
     /// Parses the html response.
-    async fn parse_response(&mut self, response: Response) -> Result<EmbassyMessage, EnvoyError> {
+    async fn parse_response(&mut self, response: Response) -> Result<Option<EmbassyMessage>, EnvoyError> {
         let response_text = response.text().await?;
         let mut status = SurveyorResponse::default();
         let lines: Vec<&str> = response_text.lines().collect();
 
         if lines.len() == 0 {
-            return Ok(EmbassyMessage::compose_surveyor_response(serde_yaml::to_string(&status)?, self.config.id));
+            return Ok(None);
         }
 
         status.state = lines[0].parse::<i32>()?;
         if status.state == 0 {
-            return Ok(EmbassyMessage::compose_surveyor_response(serde_yaml::to_string(&status)?, self.config.id))
+            return Ok(Some(EmbassyMessage::compose_surveyor_response(serde_yaml::to_string(&status)?, self.config.id)))
         }
         status.address = self.config.address.clone();
         status.location = String::from(lines[1]);
@@ -159,7 +162,7 @@ impl SurveyorEnvoy {
 
         self.last_bytes = bytes;
 
-        Ok(EmbassyMessage::compose_surveyor_response(serde_yaml::to_string(&status)?, self.config.id))
+        Ok(Some(EmbassyMessage::compose_surveyor_response(serde_yaml::to_string(&status)?, self.config.id)))
     }
 
 }
