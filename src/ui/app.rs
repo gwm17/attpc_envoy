@@ -347,8 +347,8 @@ impl eframe::App for EnvoyApp {
             egui_plot::Plot::new("RatePlot")
             .view_aspect(6.0)
             .height(200.0)
-            .legend(egui_plot::Legend::default())
-            .x_axis_label(RichText::new("Time (s)").size(16.0))
+            .legend(egui_plot::Legend::default().position(egui_plot::Corner::LeftTop))
+            .x_axis_label(RichText::new("Time Since Last Update (s)").size(16.0))
             .y_axis_label(RichText::new("Rate (MB/s)").size(16.0))
             .show(ui, |plot_ui| {
                 for line  in lines {

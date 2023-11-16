@@ -45,7 +45,7 @@ impl RateGraph {
     ///
     /// Needs some serious testing.
     pub fn get_points_to_draw(&self) -> Line {
-        let total_len = self.points.len() as i32;
+        let total_len = self.points.len() as i32 - 1;
         let graph = Line::new(
             self.points
                 .clone()
