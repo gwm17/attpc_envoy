@@ -73,6 +73,16 @@ impl StatusManager {
         &self.ecc_status
     }
 
+    pub fn set_ecc_status_transition(&mut self, id: usize) {
+        if id as i32 > MUTANT_ID {
+            return;
+        }
+
+        let mut status = ECCStatusResponse::default();
+        status.state = ECCStatus::Transition.into();
+        self.ecc_status[id] = status;
+    }
+
     /// Retrieve the system status. System status matches the envoy status if all 
     /// envoys have the same status. If not, the system status is Inconsistent.
     pub fn get_system_ecc_status(&self) -> ECCStatus {

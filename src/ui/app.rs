@@ -156,6 +156,7 @@ impl EnvoyApp {
                     }
                 }
             }
+            self.status.set_ecc_status_transition(id);
         }
     }
 

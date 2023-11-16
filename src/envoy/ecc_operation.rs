@@ -64,6 +64,21 @@ impl Into<String> for ECCStatus {
     }
 }
 
+impl Into<i32> for ECCStatus {
+    fn into(self) -> i32 {
+        match self {
+            Self::Offline => 0,
+            Self::Idle => 1,
+            Self::Prepared => 2,
+            Self::Described => 3,
+            Self::Ready => 4,
+            Self::Running => 5,
+            Self::Transition => 6,
+            _ => -1
+        }
+    }
+}
+
 impl TryFrom<String> for ECCStatus {
     type Error = ECCStatusError;
     fn try_from(value: String) -> Result<Self, Self::Error> {
@@ -91,6 +106,7 @@ impl From<i32> for ECCStatus {
             3 => ECCStatus::Prepared,
             4 => ECCStatus::Ready,
             5 => ECCStatus::Running,
+            6 => ECCStatus::Transition,
             _ => ECCStatus::ErrorStat
         }
     }
