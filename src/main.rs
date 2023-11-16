@@ -29,7 +29,7 @@ fn main() {
 
     //Start our application
     let mut native_options = eframe::NativeOptions::default();
-    native_options.initial_window_size = Some(eframe::epaint::vec2(1400.0, 1100.0));
+    native_options.initial_window_size = Some(eframe::epaint::vec2(1400.0, 1140.0));
     native_options.follow_system_theme = false;
     match eframe::run_native("ATTPC Envoy", native_options, Box::new(|cc| Box::new(EnvoyApp::new(cc, runtime)))) {
         Ok(()) => (),

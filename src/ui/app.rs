@@ -383,7 +383,7 @@ impl eframe::App for EnvoyApp {
             ui.push_id(0, |ui| {
                 egui_extras::TableBuilder::new(ui)
                     .striped(true)
-                    .column(egui_extras::Column::auto().at_least(80.0).resizable(true))
+                    .column(egui_extras::Column::auto().at_least(150.0).resizable(true))
                     .column(egui_extras::Column::auto().at_least(50.0).resizable(true))
                     .column(egui_extras::Column::auto().at_least(50.0).resizable(true))
                     .column(egui_extras::Column::auto().at_least(50.0).resizable(true))
@@ -406,7 +406,11 @@ impl eframe::App for EnvoyApp {
                         body.rows(40.0, ecc_status.len(), |ridx, mut row| {
                             let status = &ecc_status[ridx];
                             row.col(|ui| {
-                                ui.label(RichText::new(format!("ECC Envoy {}", ridx)).color(Color32::LIGHT_GREEN));
+                                if (ridx as i32) == MUTANT_ID {
+                                    ui.label(RichText::new(format!("ECC Envoy {} [MuTaNT]", ridx)).color(Color32::LIGHT_GREEN));
+                                } else {
+                                    ui.label(RichText::new(format!("ECC Envoy {} [CoBo]", ridx)).color(Color32::LIGHT_GREEN));
+                                }
                             });
                             row.col(|ui| {
                                 ui.label(RichText::new(format!("{}", ECCStatus::from(status.state))).color(Color32::GOLD));
@@ -443,11 +447,11 @@ impl eframe::App for EnvoyApp {
                     .striped(true)
                     .column(egui_extras::Column::auto().at_least(90.0).resizable(true))
                     .column(egui_extras::Column::auto().at_least(50.0).resizable(true))
-                    .column(egui_extras::Column::auto().at_least(80.0).resizable(true))
+                    .column(egui_extras::Column::auto().at_least(150.0).resizable(true))
                     .column(egui_extras::Column::auto().at_least(100.0).resizable(true))
                     .column(egui_extras::Column::auto().at_least(50.0).resizable(true))
-                    .column(egui_extras::Column::auto().at_least(100.0).resizable(true))
-                    .column(egui_extras::Column::auto().at_least(100.0).resizable(true))
+                    .column(egui_extras::Column::auto().at_least(120.0).resizable(true))
+                    .column(egui_extras::Column::auto().at_least(140.0).resizable(true))
                     .column(egui_extras::Column::auto().at_least(100.0).resizable(true))
                     .column(egui_extras::Column::auto().at_least(100.0).resizable(true))
                     .header(40.0, |mut header| {
