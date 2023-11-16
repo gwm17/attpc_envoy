@@ -257,7 +257,7 @@ impl ECCEnvoy {
         let event = reader.read_event()?; //Text payload
         parsed.text = match event {
             quick_xml::events::Event::Text(t) => String::from_utf8(t.to_vec())?,
-            _ => return Err(EnvoyError::XMLConversionError)
+            _ => String::from("")
         };
 
         Ok(EmbassyMessage::compose_ecc_response(serde_yaml::to_string(&parsed)?, self.config.id))
