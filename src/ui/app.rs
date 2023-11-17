@@ -363,8 +363,8 @@ impl eframe::App for EnvoyApp {
         eframe::egui::SidePanel::left("ECC_Panel")
         .show(ctx, |ui| {
             ui.label(RichText::new("ECC Envoy Status/Control").color(Color32::LIGHT_BLUE).size(18.0));
-            
-            ui.label(RichText::new(format!("System Status: {}", self.status.get_system_ecc_status())).size(16.0).color(Color32::GOLD));
+            let ecc_system_stat = self.status.get_system_ecc_status();
+            ui.label(RichText::new(format!("System Status: {}", ecc_system_stat)).size(16.0).color(&ecc_system_stat));
             ui.separator();
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Regress system").size(16.0));
@@ -406,6 +406,7 @@ impl eframe::App for EnvoyApp {
                         let ecc_status = self.status.get_ecc_status();
                         body.rows(40.0, ecc_status.len(), |ridx, mut row| {
                             let status = &ecc_status[ridx];
+                            let ecc_type = ECCStatus::from(status.state);
                             row.col(|ui| {
                                 if (ridx as i32) == MUTANT_ID {
                                     ui.label(RichText::new(format!("ECC Envoy {} [MuTaNT]", ridx)).color(Color32::LIGHT_GREEN));
@@ -414,15 +415,15 @@ impl eframe::App for EnvoyApp {
                                 }
                             });
                             row.col(|ui| {
-                                ui.label(RichText::new(format!("{}", ECCStatus::from(status.state))).color(Color32::GOLD));
+                                ui.label(RichText::new(format!("{}", ecc_type)).color(&ecc_type));
                             });
                             row.col(|ui| {
-                                if ui.add_enabled(ECCStatus::from(status.state).can_go_backward(), Button::new(RichText::new("\u{25C0}").color(Color32::RED))).clicked() {
+                                if ui.add_enabled(ecc_type.can_go_backward(), Button::new(RichText::new("\u{25C0}").color(Color32::RED))).clicked() {
                                     forward_transitions.push(ridx);
                                 }
                             });
                             row.col(|ui| {
-                                if ui.add_enabled(ECCStatus::from(status.state).can_go_forward(), Button::new(RichText::new("\u{25B6}").color(Color32::GREEN))).clicked() {
+                                if ui.add_enabled(ecc_type.can_go_forward(), Button::new(RichText::new("\u{25B6}").color(Color32::GREEN))).clicked() {
                                     backward_transitions.push(ridx);
                                 }
                             });
@@ -437,9 +438,9 @@ impl eframe::App for EnvoyApp {
         //Central panel showing Data router info. Use central to allow for dynamic resizing of the window.
         eframe::egui::CentralPanel::default()
         .show(ctx,|ui| {
-
+            let surv_system_stat = self.status.get_surveyor_system_status();
             ui.label(RichText::new("Data Router Status").color(Color32::LIGHT_BLUE).size(18.0));
-            ui.label(RichText::new(format!("System Status: {}", self.status.get_surveyor_system_status())).color(Color32::GOLD).size(16.0));
+            ui.label(RichText::new(format!("System Status: {}", surv_system_stat)).color(&surv_system_stat).size(16.0));
             ui.separator();
             ui.label(RichText::new("Status Board").size(16.0));
             ui.separator();
@@ -492,7 +493,8 @@ impl eframe::App for EnvoyApp {
                                 ui.label(RichText::new(format!("Data Router {}", ridx)).color(Color32::LIGHT_GREEN));
                             });
                             row.col(|ui| {
-                                ui.label(RichText::new(format!("{}", SurveyorState::from(status.state))).color(Color32::GOLD));
+                                let surv_type = SurveyorState::from(status.state);
+                                ui.label(RichText::new(format!("{}", surv_type)).color(&surv_type));
                             });
                             row.col(|ui| {
                                 ui.label(RichText::new(status.location.clone()));

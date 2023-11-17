@@ -1,7 +1,7 @@
 use super::error::{ECCOperationError, ECCStatusError};
 
 const ECC_OFFLINE_STATUS: &str = "Offline";
-const ECC_TRANSITION_STATUS: &str = "Transition";
+const ECC_BUSY_STATUS: &str = "Busy";
 const ECC_IDLE_STATUS: &str = "Idle";
 const ECC_PREPARED_STATUS: &str = "Prepared";
 const ECC_DESCRIBED_STATUS: &str = "Described";
@@ -22,7 +22,7 @@ const ECC_INVALID_OP: &str = "Invalid";
 #[derive(Debug, Clone)]
 pub enum ECCStatus {
     Offline,
-    Transition,
+    Busy,
     Idle,
     Prepared,
     Described,
@@ -36,7 +36,7 @@ impl std::fmt::Display for ECCStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Offline => write!(f, "{ECC_OFFLINE_STATUS}"),
-            Self::Transition => write!(f, "{ECC_TRANSITION_STATUS}"),
+            Self::Busy => write!(f, "{ECC_BUSY_STATUS}"),
             Self::Idle => write!(f, "{ECC_IDLE_STATUS}"),
             Self::Prepared => write!(f, "{ECC_PREPARED_STATUS}"),
             Self::Described => write!(f, "{ECC_DESCRIBED_STATUS}"),
@@ -52,7 +52,7 @@ impl Into<String> for ECCStatus {
     fn into(self) -> String {
         String::from(match self {
             Self::Offline => ECC_OFFLINE_STATUS,
-            Self::Transition => ECC_TRANSITION_STATUS,
+            Self::Busy => ECC_BUSY_STATUS,
             Self::Idle => ECC_IDLE_STATUS,
             Self::Prepared => ECC_PREPARED_STATUS,
             Self::Described => ECC_DESCRIBED_STATUS,
@@ -73,7 +73,7 @@ impl Into<i32> for ECCStatus {
             Self::Described => 3,
             Self::Ready => 4,
             Self::Running => 5,
-            Self::Transition => 6,
+            Self::Busy => 6,
             _ => -1
         }
     }
@@ -84,7 +84,7 @@ impl TryFrom<String> for ECCStatus {
     fn try_from(value: String) -> Result<Self, Self::Error> {
         match value.as_str() {
             ECC_OFFLINE_STATUS => Ok(Self::Offline),
-            ECC_TRANSITION_STATUS => Ok(Self::Transition),
+            ECC_BUSY_STATUS => Ok(Self::Busy),
             ECC_IDLE_STATUS => Ok(Self::Idle),
             ECC_PREPARED_STATUS => Ok(Self::Prepared),
             ECC_DESCRIBED_STATUS => Ok(Self::Described),
@@ -106,7 +106,7 @@ impl From<i32> for ECCStatus {
             3 => ECCStatus::Prepared,
             4 => ECCStatus::Ready,
             5 => ECCStatus::Running,
-            6 => ECCStatus::Transition,
+            6 => ECCStatus::Busy,
             _ => ECCStatus::ErrorStat
         }
     }

@@ -79,7 +79,7 @@ impl StatusManager {
         }
 
         let mut status = ECCStatusResponse::default();
-        status.state = ECCStatus::Transition.into();
+        status.state = ECCStatus::Busy.into();
         self.ecc_status[id] = status;
     }
 
