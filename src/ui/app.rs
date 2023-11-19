@@ -253,6 +253,8 @@ impl EnvoyApp {
             CommandStatus::Failure => tracing::error!("Could not backup config files after the stop run signal"),
             CommandStatus::CouldNotExecute => (),
         }
+
+        self.config.run_number += 1;
     }
 }
 
