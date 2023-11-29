@@ -1,19 +1,27 @@
-name: Cargo Build
-run-name: ${{ github.actor }} building attpc_envoy
+name: CI
+run-name: ${{ github.actor }} running CI
 on: [push]
 
 env: 
   CARGO_TERM_COLOR: always
 
 jobs:
-  build_and_test:
-    name: Rust project - latest
+  ci:
+    name: Run CI
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, macOS-latest]
 
     steps:
-      - uses: actions/checkout@v4
-      - run: rustup update stable
-      - run: cargo build --verbose
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Update Rust
+        run: rustup update stable
+
+      - name: Build
+        run: cargo build --verbose
+
+      - name: Check Format
+        run: cargo fmt -- --check

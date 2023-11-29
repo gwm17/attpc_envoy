@@ -11,7 +11,7 @@ pub enum MessageKind {
     ECCStatus,
     Surveyor,
     Other,
-    Cancel
+    Cancel,
 }
 
 impl std::fmt::Display for MessageKind {
@@ -27,7 +27,7 @@ impl std::fmt::Display for MessageKind {
 }
 
 /// # EmbassyMessage
-/// A unified message type to simplify the transfer of data from the various types of envoys to 
+/// A unified message type to simplify the transfer of data from the various types of envoys to
 /// the embassy and the embassy to the UI.
 /// Typically the data contained is some form of xml, json, or yaml string. Can be cast to specific message
 /// types using the TryFrom trait.
@@ -36,45 +36,77 @@ pub struct EmbassyMessage {
     pub kind: MessageKind,
     pub id: i32,
     pub operation: String,
-    pub response: String
+    pub response: String,
 }
 
 impl std::fmt::Display for EmbassyMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "EmbassyMessage from {} of kind {} for operation {} with response: {}", self.id, self.kind, self.operation, self.response)
+        write!(
+            f,
+            "EmbassyMessage from {} of kind {} for operation {} with response: {}",
+            self.id, self.kind, self.operation, self.response
+        )
     }
 }
 
 impl EmbassyMessage {
-
     pub fn compose_surveyor_response(response: String, id: i32) -> Self {
-        EmbassyMessage { kind: MessageKind::Surveyor, id, operation: String::from(MESSAGE_EMPTY_FIELD), response }
+        EmbassyMessage {
+            kind: MessageKind::Surveyor,
+            id,
+            operation: String::from(MESSAGE_EMPTY_FIELD),
+            response,
+        }
     }
 
     pub fn compose_ecc_op(operation: String, id: i32) -> Self {
-        EmbassyMessage { kind: MessageKind::ECCOperation, id, operation, response: String::from(MESSAGE_EMPTY_FIELD) }
+        EmbassyMessage {
+            kind: MessageKind::ECCOperation,
+            id,
+            operation,
+            response: String::from(MESSAGE_EMPTY_FIELD),
+        }
     }
 
     pub fn compose_ecc_response(response: String, id: i32) -> Self {
-        EmbassyMessage { kind: MessageKind::ECCOperation, id, operation: String::from(MESSAGE_EMPTY_FIELD), response }
+        EmbassyMessage {
+            kind: MessageKind::ECCOperation,
+            id,
+            operation: String::from(MESSAGE_EMPTY_FIELD),
+            response,
+        }
     }
 
     pub fn compose_ecc_status(response: String, id: i32) -> Self {
-        EmbassyMessage { kind: MessageKind::ECCStatus, id, operation: String::from(MESSAGE_EMPTY_FIELD), response }
+        EmbassyMessage {
+            kind: MessageKind::ECCStatus,
+            id,
+            operation: String::from(MESSAGE_EMPTY_FIELD),
+            response,
+        }
     }
 
     pub fn compose_cancel() -> Self {
-        EmbassyMessage { kind: MessageKind::Cancel, id: 0, operation: String::from(MESSAGE_EMPTY_FIELD), response: String::from(MESSAGE_EMPTY_FIELD) }
+        EmbassyMessage {
+            kind: MessageKind::Cancel,
+            id: 0,
+            operation: String::from(MESSAGE_EMPTY_FIELD),
+            response: String::from(MESSAGE_EMPTY_FIELD),
+        }
     }
-
 }
 
 impl TryInto<ECCStatusResponse> for EmbassyMessage {
     type Error = EmbassyError;
     fn try_into(self) -> Result<ECCStatusResponse, Self::Error> {
         match self.kind {
-            MessageKind::ECCStatus => Ok(serde_yaml::from_str::<ECCStatusResponse>(&self.response)?),
-            _ => Err(Self::Error::MessageKindError(MessageKind::ECCStatus, self.kind))
+            MessageKind::ECCStatus => {
+                Ok(serde_yaml::from_str::<ECCStatusResponse>(&self.response)?)
+            }
+            _ => Err(Self::Error::MessageKindError(
+                MessageKind::ECCStatus,
+                self.kind,
+            )),
         }
     }
 }
@@ -83,8 +115,13 @@ impl TryInto<ECCStatusResponse> for &EmbassyMessage {
     type Error = EmbassyError;
     fn try_into(self) -> Result<ECCStatusResponse, Self::Error> {
         match self.kind {
-            MessageKind::ECCStatus => Ok(serde_yaml::from_str::<ECCStatusResponse>(&self.response)?),
-            _ => Err(Self::Error::MessageKindError(MessageKind::ECCStatus, self.kind.clone()))
+            MessageKind::ECCStatus => {
+                Ok(serde_yaml::from_str::<ECCStatusResponse>(&self.response)?)
+            }
+            _ => Err(Self::Error::MessageKindError(
+                MessageKind::ECCStatus,
+                self.kind.clone(),
+            )),
         }
     }
 }
@@ -93,8 +130,13 @@ impl TryInto<ECCOperationResponse> for EmbassyMessage {
     type Error = EmbassyError;
     fn try_into(self) -> Result<ECCOperationResponse, Self::Error> {
         match self.kind {
-            MessageKind::ECCOperation => Ok(serde_yaml::from_str::<ECCOperationResponse>(&self.response)?),
-            _ => Err(Self::Error::MessageKindError(MessageKind::ECCOperation, self.kind))
+            MessageKind::ECCOperation => Ok(serde_yaml::from_str::<ECCOperationResponse>(
+                &self.response,
+            )?),
+            _ => Err(Self::Error::MessageKindError(
+                MessageKind::ECCOperation,
+                self.kind,
+            )),
         }
     }
 }
@@ -103,8 +145,13 @@ impl TryInto<ECCOperationResponse> for &EmbassyMessage {
     type Error = EmbassyError;
     fn try_into(self) -> Result<ECCOperationResponse, Self::Error> {
         match self.kind {
-            MessageKind::ECCOperation => Ok(serde_yaml::from_str::<ECCOperationResponse>(&self.response)?),
-            _ => Err(Self::Error::MessageKindError(MessageKind::ECCOperation, self.kind.clone()))
+            MessageKind::ECCOperation => Ok(serde_yaml::from_str::<ECCOperationResponse>(
+                &self.response,
+            )?),
+            _ => Err(Self::Error::MessageKindError(
+                MessageKind::ECCOperation,
+                self.kind.clone(),
+            )),
         }
     }
 }
@@ -114,7 +161,10 @@ impl TryInto<SurveyorResponse> for EmbassyMessage {
     fn try_into(self) -> Result<SurveyorResponse, Self::Error> {
         match self.kind {
             MessageKind::Surveyor => Ok(serde_yaml::from_str::<SurveyorResponse>(&self.response)?),
-            _ => Err(Self::Error::MessageKindError(MessageKind::Surveyor, self.kind))
+            _ => Err(Self::Error::MessageKindError(
+                MessageKind::Surveyor,
+                self.kind,
+            )),
         }
     }
 }
@@ -124,7 +174,10 @@ impl TryInto<SurveyorResponse> for &EmbassyMessage {
     fn try_into(self) -> Result<SurveyorResponse, Self::Error> {
         match self.kind {
             MessageKind::Surveyor => Ok(serde_yaml::from_str::<SurveyorResponse>(&self.response)?),
-            _ => Err(Self::Error::MessageKindError(MessageKind::Surveyor, self.kind.clone()))
+            _ => Err(Self::Error::MessageKindError(
+                MessageKind::Surveyor,
+                self.kind.clone(),
+            )),
         }
     }
 }

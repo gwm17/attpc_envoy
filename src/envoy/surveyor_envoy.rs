@@ -1,18 +1,18 @@
-use super::message::EmbassyMessage;
+use super::constants::{ADDRESS_START, NUMBER_OF_MODULES};
 use super::error::EnvoyError;
-use super::constants::{NUMBER_OF_MODULES, ADDRESS_START};
+use super::message::EmbassyMessage;
 use reqwest::{Client, Response};
-use std::time::Duration;
-use tokio::sync::mpsc;
-use tokio::sync::broadcast;
-use tokio::task::JoinHandle;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
+use tokio::sync::broadcast;
+use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 const SURVEYOR_URL_PORT: i32 = 8081;
 
 /// # SurveyorResponse
 /// The message delivered from the SurveyorEnvoy
-/// Contains a lot of data from a lot of different pieces of the 
+/// Contains a lot of data from a lot of different pieces of the
 /// filesystem on which the specific data router is running
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct SurveyorResponse {
@@ -29,17 +29,26 @@ pub struct SurveyorResponse {
 
 impl Default for SurveyorResponse {
     fn default() -> Self {
-        Self { state: 0, address: String::from("N/A"), location: String::from("N/A"), disk_status: String::from("N/A"), percent_used: String::from("N/A"), disk_space: 0, files: 0, bytes_used: 0, data_rate: 0.0 }
+        Self {
+            state: 0,
+            address: String::from("N/A"),
+            location: String::from("N/A"),
+            disk_status: String::from("N/A"),
+            percent_used: String::from("N/A"),
+            disk_space: 0,
+            files: 0,
+            bytes_used: 0,
+            data_rate: 0.0,
+        }
     }
 }
-
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct SurveyorConfig {
     id: i32,
     address: String,
-    url: String
+    url: String,
 }
 
 impl SurveyorConfig {
@@ -51,7 +60,7 @@ impl SurveyorConfig {
     }
 
     fn address(id: &i32) -> String {
-        format!("{ADDRESS_START}.{}", 60+id)
+        format!("{ADDRESS_START}.{}", 60 + id)
     }
 
     fn url(address: &str) -> String {
@@ -69,22 +78,31 @@ pub struct SurveyorEnvoy {
     connection: Client,
     outgoing: mpsc::Sender<EmbassyMessage>,
     cancel: broadcast::Receiver<EmbassyMessage>,
-    last_bytes: u64
+    last_bytes: u64,
 }
 
 impl SurveyorEnvoy {
-
-    pub fn new(config: SurveyorConfig, tx: mpsc::Sender<EmbassyMessage>, cancel: broadcast::Receiver<EmbassyMessage>) -> Result<Self, EnvoyError> {
+    pub fn new(
+        config: SurveyorConfig,
+        tx: mpsc::Sender<EmbassyMessage>,
+        cancel: broadcast::Receiver<EmbassyMessage>,
+    ) -> Result<Self, EnvoyError> {
         //10s default timeouts
         let connection_out = Duration::from_secs(10);
         let req_timeout = Duration::from_secs(10);
 
         //Probably need some options here, for now just set some timeouts
         let client = Client::builder()
-                                .connect_timeout(connection_out)
-                                .timeout(req_timeout)
-                                .build()?;
-        return Ok(Self { config, connection: client, outgoing: tx, cancel, last_bytes: 0});
+            .connect_timeout(connection_out)
+            .timeout(req_timeout)
+            .build()?;
+        return Ok(Self {
+            config,
+            connection: client,
+            outgoing: tx,
+            cancel,
+            last_bytes: 0,
+        });
     }
 
     /// This is the core task loop for a SurveyorEnvoy. Every two seconds check the
@@ -112,15 +130,16 @@ impl SurveyorEnvoy {
     }
 
     async fn submit_check_status(&mut self) -> Result<Option<EmbassyMessage>, EnvoyError> {
-        let response = self.connection
-                                .get(&self.config.url)
-                                .send().await?;
+        let response = self.connection.get(&self.config.url).send().await?;
         let parsed_response = self.parse_response(response).await?;
         Ok(parsed_response)
     }
 
     /// Parses the html response.
-    async fn parse_response(&mut self, response: Response) -> Result<Option<EmbassyMessage>, EnvoyError> {
+    async fn parse_response(
+        &mut self,
+        response: Response,
+    ) -> Result<Option<EmbassyMessage>, EnvoyError> {
         let response_text = response.text().await?;
         let mut status = SurveyorResponse::default();
         let lines: Vec<&str> = response_text.lines().collect();
@@ -131,7 +150,10 @@ impl SurveyorEnvoy {
 
         status.state = lines[0].parse::<i32>()?;
         if status.state == 0 {
-            return Ok(Some(EmbassyMessage::compose_surveyor_response(serde_yaml::to_string(&status)?, self.config.id)))
+            return Ok(Some(EmbassyMessage::compose_surveyor_response(
+                serde_yaml::to_string(&status)?,
+                self.config.id,
+            )));
         }
         status.address = self.config.address.clone();
         status.location = String::from(lines[1]);
@@ -154,7 +176,7 @@ impl SurveyorEnvoy {
         } else {
             status.disk_status = String::from("Empty");
         }
-        
+
         status.files = n_files;
         status.bytes_used = bytes;
 
@@ -162,29 +184,33 @@ impl SurveyorEnvoy {
 
         self.last_bytes = bytes;
 
-        Ok(Some(EmbassyMessage::compose_surveyor_response(serde_yaml::to_string(&status)?, self.config.id)))
+        Ok(Some(EmbassyMessage::compose_surveyor_response(
+            serde_yaml::to_string(&status)?,
+            self.config.id,
+        )))
     }
-
 }
 
 /// Function to create all of the SurveyorEnvoys and spawn their tatsks. Returns handles to the tasks.
-pub fn startup_surveyor_envoys(runtime: &mut tokio::runtime::Runtime, surveyor_tx: &mpsc::Sender<EmbassyMessage>, cancel: &broadcast::Sender<EmbassyMessage>) -> Vec<JoinHandle<()>> {
+pub fn startup_surveyor_envoys(
+    runtime: &mut tokio::runtime::Runtime,
+    surveyor_tx: &mpsc::Sender<EmbassyMessage>,
+    cancel: &broadcast::Sender<EmbassyMessage>,
+) -> Vec<JoinHandle<()>> {
     let mut handles: Vec<JoinHandle<()>> = vec![];
 
     //spin up the surveyor envoys, Mutant does not get a data router/surveyor
-    for id in 0..(NUMBER_OF_MODULES-1) {
+    for id in 0..(NUMBER_OF_MODULES - 1) {
         let config = SurveyorConfig::new(id);
         let this_surveyor_tx = surveyor_tx.clone();
         let this_cancel = cancel.subscribe();
         let handle = runtime.spawn(async move {
             match SurveyorEnvoy::new(config, this_surveyor_tx, this_cancel) {
-                Ok(mut ev) => {
-                    match ev.wait_check_status().await {
-                        Ok(()) =>(),
-                        Err(e) => tracing::error!("Surveyor status envoy ran into an error: {}", e)
-                    }
-                }
-                Err(e) => tracing::error!("Error creating Surveyor status envoy: {}", e)
+                Ok(mut ev) => match ev.wait_check_status().await {
+                    Ok(()) => (),
+                    Err(e) => tracing::error!("Surveyor status envoy ran into an error: {}", e),
+                },
+                Err(e) => tracing::error!("Error creating Surveyor status envoy: {}", e),
             }
         });
 

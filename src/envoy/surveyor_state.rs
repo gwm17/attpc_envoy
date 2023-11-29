@@ -1,4 +1,3 @@
-
 const SURVEYOR_ONLINE_STATE_TEXT: &str = "Online";
 const SURVEYOR_OFFLINE_STATE_TEXT: &str = "Offline";
 const SURVEYOR_INVALID_STATE_TEXT: &str = "Invalid";
@@ -13,7 +12,7 @@ pub enum SurveyorState {
     Online,
     Offline,
     Invalid,
-    Inconsistent
+    Inconsistent,
 }
 
 impl From<i32> for SurveyorState {
@@ -21,7 +20,7 @@ impl From<i32> for SurveyorState {
         match value {
             0 => Self::Offline,
             1 => Self::Online,
-            _ => Self::Invalid
+            _ => Self::Invalid,
         }
     }
 }
@@ -32,7 +31,7 @@ impl std::fmt::Display for SurveyorState {
             Self::Online => write!(f, "{SURVEYOR_ONLINE_STATE_TEXT}"),
             Self::Offline => write!(f, "{SURVEYOR_OFFLINE_STATE_TEXT}"),
             Self::Invalid => write!(f, "{SURVEYOR_INVALID_STATE_TEXT}"),
-            Self::Inconsistent => write!(f, "{SURVEYOR_INCONSISTENT_STATE_TEXT}")
+            Self::Inconsistent => write!(f, "{SURVEYOR_INCONSISTENT_STATE_TEXT}"),
         }
     }
 }
@@ -59,7 +58,7 @@ impl std::fmt::Display for SurveyorDiskStatus {
         match self {
             Self::Filled => write!(f, "{SURVEYOR_DISK_FILLED_TEXT}"),
             Self::Empty => write!(f, "{SURVEYOR_DISK_EMPTY_TEXT}"),
-            Self::NA => write!(f, "{SURVEYOR_DISK_NA_TEXT}")
+            Self::NA => write!(f, "{SURVEYOR_DISK_NA_TEXT}"),
         }
     }
 }

@@ -1,32 +1,41 @@
-use super::message::{EmbassyMessage, MessageKind};
 use super::ecc_envoy::startup_ecc_envoys;
-use super::surveyor_envoy::startup_surveyor_envoys;
 use super::error::EmbassyError;
+use super::message::{EmbassyMessage, MessageKind};
+use super::surveyor_envoy::startup_surveyor_envoys;
 use std::collections::HashMap;
-use tokio::sync::mpsc;
 use tokio::sync::broadcast;
+use tokio::sync::mpsc;
 
 /// # Embassy
 /// The embassy is the bridge between the async envoys and
 /// the synchronous UI-application. The embassy is essentially a
 /// container of channels used to communicate back-and-forth between these
-/// two runtimes. 
+/// two runtimes.
 #[derive(Debug)]
 pub struct Embassy {
     ecc_senders: HashMap<i32, mpsc::Sender<EmbassyMessage>>,
     envoy_reciever: mpsc::Receiver<EmbassyMessage>,
-    cancel: broadcast::Sender<EmbassyMessage>
+    cancel: broadcast::Sender<EmbassyMessage>,
 }
 
 impl Embassy {
-
-    pub fn new(envoy_reciever: mpsc::Receiver<EmbassyMessage>, ecc_senders: HashMap<i32, mpsc::Sender<EmbassyMessage>>, cancel: broadcast::Sender<EmbassyMessage>) -> Self {
-        Embassy { ecc_senders, envoy_reciever, cancel }
+    pub fn new(
+        envoy_reciever: mpsc::Receiver<EmbassyMessage>,
+        ecc_senders: HashMap<i32, mpsc::Sender<EmbassyMessage>>,
+        cancel: broadcast::Sender<EmbassyMessage>,
+    ) -> Self {
+        Embassy {
+            ecc_senders,
+            envoy_reciever,
+            cancel,
+        }
     }
 
     pub fn shutdown(&mut self) {
         let cancel_message = EmbassyMessage::compose_cancel();
-        self.cancel.send(cancel_message).expect("Some how all the envoys are already dead?");
+        self.cancel
+            .send(cancel_message)
+            .expect("Some how all the envoys are already dead?");
     }
 
     pub fn submit_message(&mut self, message: EmbassyMessage) -> Result<(), EmbassyError> {
@@ -44,21 +53,25 @@ impl Embassy {
             match self.envoy_reciever.try_recv() {
                 Ok(message) => messages.push(message.into()),
                 Err(mpsc::error::TryRecvError::Empty) => break,
-                Err(mpsc::error::TryRecvError::Disconnected) => return Err(EmbassyError::MessageRecieveError)
+                Err(mpsc::error::TryRecvError::Disconnected) => {
+                    return Err(EmbassyError::MessageRecieveError)
+                }
             };
         }
         Ok(messages)
     }
-
-
 }
 
 /// This is the function to create and connect an Embassy as well as all of the envoys.
-pub fn connect_embassy(runtime: &mut tokio::runtime::Runtime, experiment: &str) -> (Embassy, Vec<tokio::task::JoinHandle<()>>) {
+pub fn connect_embassy(
+    runtime: &mut tokio::runtime::Runtime,
+    experiment: &str,
+) -> (Embassy, Vec<tokio::task::JoinHandle<()>>) {
     let (envoy_tx, embassy_rx) = mpsc::channel::<EmbassyMessage>(33);
     let (cancel_tx, _) = broadcast::channel::<EmbassyMessage>(10);
 
-    let (mut handles, ecc_switchboard) = startup_ecc_envoys(runtime, experiment, &envoy_tx, &cancel_tx);
+    let (mut handles, ecc_switchboard) =
+        startup_ecc_envoys(runtime, experiment, &envoy_tx, &cancel_tx);
     let mut sur_handles = startup_surveyor_envoys(runtime, &envoy_tx, &cancel_tx);
 
     let embassy = Embassy::new(embassy_rx, ecc_switchboard, cancel_tx);

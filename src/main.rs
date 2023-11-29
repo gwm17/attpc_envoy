@@ -1,12 +1,11 @@
-mod ui;
-mod envoy;
 mod command;
+mod envoy;
+mod ui;
 
-use ui::app::EnvoyApp;
 use tokio::runtime::Builder;
+use ui::app::EnvoyApp;
 
 fn main() {
-
     //Create the async runtime
     let runtime: tokio::runtime::Runtime = Builder::new_multi_thread()
         .worker_threads(1)
@@ -23,7 +22,8 @@ fn main() {
         .with_thread_ids(true)
         .with_target(false)
         .finish();
-    tracing::subscriber::set_global_default(subscriber).expect("Could not initialize the tracing system!");
+    tracing::subscriber::set_global_default(subscriber)
+        .expect("Could not initialize the tracing system!");
 
     tracing::info!("Tracing initialized!");
 
@@ -31,9 +31,13 @@ fn main() {
     let mut native_options = eframe::NativeOptions::default();
     native_options.initial_window_size = Some(eframe::epaint::vec2(1400.0, 1140.0));
     native_options.follow_system_theme = false;
-    match eframe::run_native("ATTPC Envoy", native_options, Box::new(|cc| Box::new(EnvoyApp::new(cc, runtime)))) {
+    match eframe::run_native(
+        "ATTPC Envoy",
+        native_options,
+        Box::new(|cc| Box::new(EnvoyApp::new(cc, runtime))),
+    ) {
         Ok(()) => (),
-        Err(e) => tracing::error!("Eframe error: {}", e)
+        Err(e) => tracing::error!("Eframe error: {}", e),
     }
 
     return;

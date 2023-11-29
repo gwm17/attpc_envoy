@@ -1,6 +1,6 @@
 pub mod app;
 mod config;
-mod rate_graph;
 mod graph_manager;
-mod status_manager;
+mod rate_graph;
 mod status_colors;
+mod status_manager;

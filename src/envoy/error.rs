@@ -3,37 +3,33 @@ use tokio::sync::mpsc::error::SendError;
 
 #[derive(Debug)]
 pub enum ECCOperationError {
-    BadString(String)
+    BadString(String),
 }
 
 impl std::fmt::Display for ECCOperationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::BadString(s) => write!(f, "Could not convert string {s} to ECCOperation!")
+            Self::BadString(s) => write!(f, "Could not convert string {s} to ECCOperation!"),
         }
     }
 }
 
-impl std::error::Error for ECCOperationError {
-    
-}
+impl std::error::Error for ECCOperationError {}
 
 #[derive(Debug)]
 pub enum ECCStatusError {
-    BadString(String)
+    BadString(String),
 }
 
 impl std::fmt::Display for ECCStatusError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::BadString(s) => write!(f, "Could not convert string {s} to ECCStatus!")
+            Self::BadString(s) => write!(f, "Could not convert string {s} to ECCStatus!"),
         }
     }
 }
 
-impl std::error::Error for ECCStatusError {
-    
-}
+impl std::error::Error for ECCStatusError {}
 
 #[derive(Debug)]
 pub enum EnvoyError {
@@ -106,30 +102,30 @@ impl From<std::string::FromUtf8Error> for EnvoyError {
 impl std::fmt::Display for EnvoyError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::RequestError(e) => write!(f, "Envoy recieved an error while making a request: {e}"),
+            Self::RequestError(e) => {
+                write!(f, "Envoy recieved an error while making a request: {e}")
+            }
             Self::MessageParseError(e) => write!(f, "Envoy failed to parse a message to yaml: {e}"),
             Self::OperationError(e) => write!(f, "Envoy recieved operation error: {e}"),
             Self::StatusError(e) => write!(f, "Envoy recieved status error: {e}"),
             Self::SendError(e) => write!(f, "Envoy failed to send a message: {e}"),
             Self::StringToIntError(e) => write!(f, "Envoy failed to parse string to integer: {e}"),
             Self::StringToFloatError(e) => write!(f, "Envoy failed to parse string to float: {e}"),
-            Self::XMLError(e) =>  write!(f, "Envoy failed to parse XML body: {e}"),
+            Self::XMLError(e) => write!(f, "Envoy failed to parse XML body: {e}"),
             Self::XMLUtf8Error(e) => write!(f, "Envoy failed to convert XML to String: {e}"),
-            Self::XMLConversionError => write!(f, "Envoy failed to convert XML data!")
+            Self::XMLConversionError => write!(f, "Envoy failed to convert XML data!"),
         }
     }
 }
 
-impl std::error::Error for EnvoyError {
-
-}
+impl std::error::Error for EnvoyError {}
 
 #[derive(Debug)]
 pub enum EmbassyError {
     MessageSendError(SendError<EmbassyMessage>),
     MessageKindError(MessageKind, MessageKind),
     MessageParseError(serde_yaml::Error),
-    MessageRecieveError
+    MessageRecieveError,
 }
 
 impl From<SendError<EmbassyMessage>> for EmbassyError {
@@ -147,14 +143,19 @@ impl From<serde_yaml::Error> for EmbassyError {
 impl std::fmt::Display for EmbassyError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::MessageKindError(expected, recieved) => write!(f, "Embassy expected {expected} message, recieved {recieved} message!"),
-            Self::MessageSendError(e) => write!(f, "Embassy had an error sending the following message: {e}"),
+            Self::MessageKindError(expected, recieved) => write!(
+                f,
+                "Embassy expected {expected} message, recieved {recieved} message!"
+            ),
+            Self::MessageSendError(e) => {
+                write!(f, "Embassy had an error sending the following message: {e}")
+            }
             Self::MessageParseError(e) => write!(f, "Embassy had an error parsing a message: {e}"),
-            Self::MessageRecieveError => write!(f, "Embassy communication lines were disconnected!")
+            Self::MessageRecieveError => {
+                write!(f, "Embassy communication lines were disconnected!")
+            }
         }
     }
 }
 
-impl std::error::Error for EmbassyError {
-
-}
+impl std::error::Error for EmbassyError {}

@@ -1,18 +1,18 @@
 use super::config::Config;
 use super::graph_manager::GraphManager;
 use super::status_manager::StatusManager;
-use crate::envoy::embassy::{Embassy, connect_embassy};
-use crate::envoy::message::EmbassyMessage;
-use crate::envoy::ecc_operation::{ECCStatus, ECCOperation};
-use crate::envoy::surveyor_state::{SurveyorState, SurveyorDiskStatus};
-use crate::envoy::constants::{NUMBER_OF_MODULES, MUTANT_ID};
 use crate::command::command::{execute, CommandName, CommandStatus};
+use crate::envoy::constants::{MUTANT_ID, NUMBER_OF_MODULES};
+use crate::envoy::ecc_operation::{ECCOperation, ECCStatus};
+use crate::envoy::embassy::{connect_embassy, Embassy};
+use crate::envoy::message::EmbassyMessage;
+use crate::envoy::surveyor_state::{SurveyorDiskStatus, SurveyorState};
 
-use std::path::Path;
+use eframe::egui::widgets::Button;
+use eframe::egui::{Color32, RichText};
 use std::fs::File;
 use std::io::{Read, Write};
-use eframe::egui::{RichText, Color32};
-use eframe::egui::widgets::Button;
+use std::path::Path;
 
 const DEFAULT_TEXT_COLOR: Color32 = Color32::LIGHT_GRAY;
 
@@ -27,7 +27,7 @@ pub struct EnvoyApp {
     envoy_handles: Option<Vec<tokio::task::JoinHandle<()>>>,
     status: StatusManager,
     graphs: GraphManager,
-    max_graph_points: usize
+    max_graph_points: usize,
 }
 
 impl EnvoyApp {
@@ -36,7 +36,15 @@ impl EnvoyApp {
         let mut visuals = eframe::egui::Visuals::dark();
         visuals.override_text_color = Some(DEFAULT_TEXT_COLOR);
         cc.egui_ctx.set_visuals(visuals);
-        EnvoyApp { config: Config::new(), runtime, embassy: None, envoy_handles: None, status: StatusManager::new(), graphs: GraphManager::new(10), max_graph_points: 10 }
+        EnvoyApp {
+            config: Config::new(),
+            runtime,
+            embassy: None,
+            envoy_handles: None,
+            status: StatusManager::new(),
+            graphs: GraphManager::new(10),
+            max_graph_points: 10,
+        }
     }
 
     /// Read in a config from a YAML file at the filepath
@@ -98,11 +106,14 @@ impl EnvoyApp {
         if self.embassy.is_some() {
             let mut embassy = self.embassy.take().expect("Literally cant happen");
             embassy.shutdown();
-            let handles = self.envoy_handles.take().expect("Handles did not exist at disconnect?");
+            let handles = self
+                .envoy_handles
+                .take()
+                .expect("Handles did not exist at disconnect?");
             for handle in handles {
                 match self.runtime.block_on(handle) {
                     Ok(()) => (),
-                    Err(e) => tracing::error!("Encountered an error whilst disconnecting: {}", e)
+                    Err(e) => tracing::error!("Encountered an error whilst disconnecting: {}", e),
                 }
             }
             tracing::info!("Disconnected the embassy");
@@ -119,19 +130,25 @@ impl EnvoyApp {
                 Ok(messages) => {
                     match self.status.handle_messages(&messages) {
                         Ok(_) => (),
-                        Err(e) => tracing::error!("StatusManager ran into an error handling messages: {}", e)
+                        Err(e) => tracing::error!(
+                            "StatusManager ran into an error handling messages: {}",
+                            e
+                        ),
                     };
                     match self.graphs.handle_messages(&messages) {
                         Ok(_) => (),
-                        Err(e) => tracing::error!("GraphManager ran into an error handling messages: {}", e)
+                        Err(e) => tracing::error!(
+                            "GraphManager ran into an error handling messages: {}",
+                            e
+                        ),
                     }
                 }
-                Err(e) => tracing::error!("Embassy ran into an error polling the envoys: {}", e)
+                Err(e) => tracing::error!("Embassy ran into an error polling the envoys: {}", e),
             };
         }
     }
 
-    /// Send a transition command to some of the ECC operation envoys. Transitions are either forward or backward 
+    /// Send a transition command to some of the ECC operation envoys. Transitions are either forward or backward
     /// depending on the is_forward flag. What type of transition is determined by the current state of the envoy as last recorded
     /// by the status envoy.
     fn transition_ecc(&mut self, ids: Vec<usize>, is_forward: bool) {
@@ -148,16 +165,20 @@ impl EnvoyApp {
             let operation: ECCOperation;
             if is_forward {
                 operation = ECCStatus::from(status.state).get_forward_operation();
-            
             } else {
                 operation = ECCStatus::from(status.state).get_backward_operation();
             }
             match operation {
                 ECCOperation::Invalid => (),
                 _ => {
-                    match self.embassy.as_mut().unwrap().submit_message(EmbassyMessage::compose_ecc_op(operation.into(), id as i32)) {
+                    match self
+                        .embassy
+                        .as_mut()
+                        .unwrap()
+                        .submit_message(EmbassyMessage::compose_ecc_op(operation.into(), id as i32))
+                    {
                         Ok(()) => (),
-                        Err(e) => tracing::error!("Embassy had an error sending a message: {}", e)
+                        Err(e) => tracing::error!("Embassy had an error sending a message: {}", e),
                     }
                 }
             }
@@ -178,7 +199,7 @@ impl EnvoyApp {
     }
 
     /// Send a start run command to all of the envoys.
-    /// Note that several important things must happen here. First a command is sent to make sure that 
+    /// Note that several important things must happen here. First a command is sent to make sure that
     /// the run number was not already used. Then, the CoBos must start, and only once all CoBos are running,
     /// does the Mutant start. The rate graphs are also reset.
     fn start_run(&mut self) {
@@ -187,20 +208,32 @@ impl EnvoyApp {
         self.graphs.reset_graphs();
 
         //Check the run number status using the shell scripting engine
-        match execute(CommandName::CheckRunExists, self.status.get_surveyor_status(), &self.config.experiment, &self.config.run_number) {
+        match execute(
+            CommandName::CheckRunExists,
+            self.status.get_surveyor_status(),
+            &self.config.experiment,
+            &self.config.run_number,
+        ) {
             CommandStatus::Success => {
                 tracing::warn!("Tried to start a run with a run number that was already used! Either delete the extant data or change the run number!");
                 return;
             }
             CommandStatus::Failure => (),
-            CommandStatus::CouldNotExecute => return
+            CommandStatus::CouldNotExecute => return,
         }
 
         //Start CoBos
-        for id in 0..(NUMBER_OF_MODULES-1) {
-            match self.embassy.as_mut().unwrap().submit_message(EmbassyMessage::compose_ecc_op(operation.clone().into(), id)) {
+        for id in 0..(NUMBER_OF_MODULES - 1) {
+            match self
+                .embassy
+                .as_mut()
+                .unwrap()
+                .submit_message(EmbassyMessage::compose_ecc_op(operation.clone().into(), id))
+            {
                 Ok(()) => (),
-                Err(e) => tracing::error!("Embassy had an error sending a start run message: {}", e)
+                Err(e) => {
+                    tracing::error!("Embassy had an error sending a start run message: {}", e)
+                }
             }
         }
 
@@ -212,9 +245,16 @@ impl EnvoyApp {
         }
 
         //Start mutant
-        match self.embassy.as_mut().unwrap().submit_message(EmbassyMessage::compose_ecc_op(operation.clone().into(), MUTANT_ID)) {
+        match self
+            .embassy
+            .as_mut()
+            .unwrap()
+            .submit_message(EmbassyMessage::compose_ecc_op(
+                operation.clone().into(),
+                MUTANT_ID,
+            )) {
             Ok(()) => (),
-            Err(e) => tracing::error!("Embassy had an error sending a start run message: {}", e)
+            Err(e) => tracing::error!("Embassy had an error sending a start run message: {}", e),
         }
     }
 
@@ -227,12 +267,19 @@ impl EnvoyApp {
         let operation = ECCOperation::Stop;
 
         //Stop the mutant
-        match self.embassy.as_mut().unwrap().submit_message(EmbassyMessage::compose_ecc_op(operation.clone().into(), MUTANT_ID)) {
+        match self
+            .embassy
+            .as_mut()
+            .unwrap()
+            .submit_message(EmbassyMessage::compose_ecc_op(
+                operation.clone().into(),
+                MUTANT_ID,
+            )) {
             Ok(()) => (),
-            Err(e) => tracing::error!("Embassy had an error sending a stop run message: {}", e)
+            Err(e) => tracing::error!("Embassy had an error sending a stop run message: {}", e),
         }
 
-        //Wait for mutant to stop 
+        //Wait for mutant to stop
         loop {
             if self.status.is_mutant_stopped() {
                 break;
@@ -240,22 +287,43 @@ impl EnvoyApp {
         }
 
         //Stop all of the CoBos
-        for id in 0..(NUMBER_OF_MODULES-1) {
-            match self.embassy.as_mut().unwrap().submit_message(EmbassyMessage::compose_ecc_op(operation.clone().into(), id)) {
+        for id in 0..(NUMBER_OF_MODULES - 1) {
+            match self
+                .embassy
+                .as_mut()
+                .unwrap()
+                .submit_message(EmbassyMessage::compose_ecc_op(operation.clone().into(), id))
+            {
                 Ok(()) => (),
-                Err(e) => tracing::error!("Embassy had an error sending a start run message: {}", e)
+                Err(e) => {
+                    tracing::error!("Embassy had an error sending a start run message: {}", e)
+                }
             }
         }
 
-        match execute(CommandName::MoveGrawFiles, self.status.get_surveyor_status(), &self.config.experiment, &self.config.run_number) {
+        match execute(
+            CommandName::MoveGrawFiles,
+            self.status.get_surveyor_status(),
+            &self.config.experiment,
+            &self.config.run_number,
+        ) {
             CommandStatus::Success => (),
-            CommandStatus::Failure => tracing::error!("Unable to move the graw files after the stop run signal!"),
-            CommandStatus::CouldNotExecute => ()
+            CommandStatus::Failure => {
+                tracing::error!("Unable to move the graw files after the stop run signal!")
+            }
+            CommandStatus::CouldNotExecute => (),
         }
 
-        match execute(CommandName::BackupConfig, self.status.get_surveyor_status(), &self.config.experiment, &self.config.run_number) {
+        match execute(
+            CommandName::BackupConfig,
+            self.status.get_surveyor_status(),
+            &self.config.experiment,
+            &self.config.run_number,
+        ) {
             CommandStatus::Success => (),
-            CommandStatus::Failure => tracing::error!("Could not backup config files after the stop run signal"),
+            CommandStatus::Failure => {
+                tracing::error!("Could not backup config files after the stop run signal")
+            }
             CommandStatus::CouldNotExecute => (),
         }
 
@@ -264,20 +332,18 @@ impl EnvoyApp {
 }
 
 impl eframe::App for EnvoyApp {
-
     fn update(&mut self, ctx: &eframe::egui::Context, _frame: &mut eframe::Frame) {
-
         //Probably don't want to poll every frame, but as a test...
         self.poll_embassy();
 
         // The top panel, contains the specific configuration
-        eframe::egui::TopBottomPanel::top("Config_Panel")
-        .show(ctx, |ui| {
-
+        eframe::egui::TopBottomPanel::top("Config_Panel").show(ctx, |ui| {
             ui.menu_button(RichText::new("File").size(16.0), |ui| {
                 if ui.button(RichText::new("Save").size(14.0)).clicked() {
                     if let Ok(Some(path)) = native_dialog::FileDialog::new()
-                        .set_location(&std::env::current_dir().expect("Couldn't access runtime directory"))
+                        .set_location(
+                            &std::env::current_dir().expect("Couldn't access runtime directory"),
+                        )
                         .add_filter("YAML file", &["yaml"])
                         .show_save_single_file()
                     {
@@ -287,7 +353,9 @@ impl eframe::App for EnvoyApp {
                 }
                 if ui.button(RichText::new("Open").size(14.0)).clicked() {
                     if let Ok(Some(path)) = native_dialog::FileDialog::new()
-                        .set_location(&std::env::current_dir().expect("Couldn't access runtime directory"))
+                        .set_location(
+                            &std::env::current_dir().expect("Couldn't access runtime directory"),
+                        )
                         .add_filter("YAML file", &["yaml"])
                         .show_open_single_file()
                     {
@@ -300,26 +368,52 @@ impl eframe::App for EnvoyApp {
             ui.separator();
 
             ui.horizontal(|ui| {
-                if ui.add_enabled(self.embassy.is_none(), Button::new(RichText::new("Connect").color(Color32::LIGHT_BLUE).size(16.0)).min_size([100.0, 25.0].into())).clicked() {
+                if ui
+                    .add_enabled(
+                        self.embassy.is_none(),
+                        Button::new(
+                            RichText::new("Connect")
+                                .color(Color32::LIGHT_BLUE)
+                                .size(16.0),
+                        )
+                        .min_size([100.0, 25.0].into()),
+                    )
+                    .clicked()
+                {
                     self.connect();
                 }
-                if ui.add_enabled(self.embassy.is_some(), Button::new(RichText::new("Disconnect").color(Color32::LIGHT_RED).size(16.0)).min_size([100.0, 25.0].into())).clicked() {
+                if ui
+                    .add_enabled(
+                        self.embassy.is_some(),
+                        Button::new(
+                            RichText::new("Disconnect")
+                                .color(Color32::LIGHT_RED)
+                                .size(16.0),
+                        )
+                        .min_size([100.0, 25.0].into()),
+                    )
+                    .clicked()
+                {
                     self.disconnect();
                 }
             });
 
             ui.separator();
-            ui.label(RichText::new("Configuration").color(Color32::LIGHT_BLUE).size(18.0));
+            ui.label(
+                RichText::new("Configuration")
+                    .color(Color32::LIGHT_BLUE)
+                    .size(18.0),
+            );
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Experiment").size(16.0));
                 ui.text_edit_singleline(&mut self.config.experiment);
             });
-            
+
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Description").size(16.0));
                 ui.text_edit_singleline(&mut self.config.description);
             });
-            
+
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Run Number").size(16.0));
                 ui.add(eframe::egui::widgets::DragValue::new(&mut self.config.run_number).speed(1));
@@ -327,11 +421,25 @@ impl eframe::App for EnvoyApp {
             ui.separator();
 
             ui.horizontal(|ui| {
-                if ui.add_enabled(self.status.is_system_ready(), Button::new(RichText::new("Start").color(Color32::GREEN).size(16.0)).min_size([100.0, 25.0].into())).clicked() {
+                if ui
+                    .add_enabled(
+                        self.status.is_system_ready(),
+                        Button::new(RichText::new("Start").color(Color32::GREEN).size(16.0))
+                            .min_size([100.0, 25.0].into()),
+                    )
+                    .clicked()
+                {
                     self.start_run();
                 }
-    
-                if ui.add_enabled(self.status.is_system_running(), Button::new(RichText::new("Stop").color(Color32::RED).size(16.0)).min_size([100.0, 25.0].into())).clicked() {
+
+                if ui
+                    .add_enabled(
+                        self.status.is_system_running(),
+                        Button::new(RichText::new("Stop").color(Color32::RED).size(16.0))
+                            .min_size([100.0, 25.0].into()),
+                    )
+                    .clicked()
+                {
                     self.stop_run();
                 }
             });
@@ -342,9 +450,13 @@ impl eframe::App for EnvoyApp {
         eframe::egui::TopBottomPanel::bottom("Graph_Panel").show(ctx, |ui| {
             ui.separator();
             let lines = self.graphs.get_line_graphs();
-            ui.label(RichText::new("Data Rate Graph").color(Color32::LIGHT_BLUE).size(18.0));
+            ui.label(
+                RichText::new("Data Rate Graph")
+                    .color(Color32::LIGHT_BLUE)
+                    .size(18.0),
+            );
             ui.separator();
-            ui.horizontal(|ui| { 
+            ui.horizontal(|ui| {
                 ui.label(RichText::new("Number of Points Per Graph").size(16.0));
                 ui.add(eframe::egui::DragValue::new(&mut self.max_graph_points).speed(1));
             });
@@ -353,38 +465,57 @@ impl eframe::App for EnvoyApp {
                 self.graphs.set_max_points(&self.max_graph_points)
             }
             egui_plot::Plot::new("RatePlot")
-            .view_aspect(6.0)
-            .height(200.0)
-            .legend(egui_plot::Legend::default().position(egui_plot::Corner::LeftTop))
-            .x_axis_label(RichText::new("Time Since Last Update (s)").size(16.0))
-            .y_axis_label(RichText::new("Rate (MB/s)").size(16.0))
-            .show(ui, |plot_ui| {
-                for line  in lines {
-                    plot_ui.line(line);
-                }
-            });
+                .view_aspect(6.0)
+                .height(200.0)
+                .legend(egui_plot::Legend::default().position(egui_plot::Corner::LeftTop))
+                .x_axis_label(RichText::new("Time Since Last Update (s)").size(16.0))
+                .y_axis_label(RichText::new("Rate (MB/s)").size(16.0))
+                .show(ui, |plot_ui| {
+                    for line in lines {
+                        plot_ui.line(line);
+                    }
+                });
             ui.separator();
         });
 
         //Side panel showing all ECC Envoy controls
-        eframe::egui::SidePanel::left("ECC_Panel")
-        .show(ctx, |ui| {
-            ui.label(RichText::new("ECC Envoy Status/Control").color(Color32::LIGHT_BLUE).size(18.0));
+        eframe::egui::SidePanel::left("ECC_Panel").show(ctx, |ui| {
+            ui.label(
+                RichText::new("ECC Envoy Status/Control")
+                    .color(Color32::LIGHT_BLUE)
+                    .size(18.0),
+            );
             let ecc_system_stat = self.status.get_system_ecc_status();
-            ui.label(RichText::new(format!("System Status: {}", ecc_system_stat)).size(16.0).color(&ecc_system_stat));
+            ui.label(
+                RichText::new(format!("System Status: {}", ecc_system_stat))
+                    .size(16.0)
+                    .color(&ecc_system_stat),
+            );
             ui.separator();
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Regress system").size(16.0));
-                if ui.add_enabled(self.status.get_system_ecc_status().can_go_backward(), Button::new(RichText::new("\u{25C0}").color(Color32::RED).size(16.0))).clicked() {
+                if ui
+                    .add_enabled(
+                        self.status.get_system_ecc_status().can_go_backward(),
+                        Button::new(RichText::new("\u{25C0}").color(Color32::RED).size(16.0)),
+                    )
+                    .clicked()
+                {
                     self.backward_transition_all();
                 }
                 ui.label(RichText::new("Progress system").size(16.0));
-                if ui.add_enabled(self.status.get_system_ecc_status().can_go_forward(),Button::new(RichText::new("\u{25B6}").color(Color32::GREEN).size(16.0))).clicked() {
+                if ui
+                    .add_enabled(
+                        self.status.get_system_ecc_status().can_go_forward(),
+                        Button::new(RichText::new("\u{25B6}").color(Color32::GREEN).size(16.0)),
+                    )
+                    .clicked()
+                {
                     self.forward_transition_all();
                 }
             });
             ui.separator();
-            
+
             let mut forward_transitions: Vec<usize> = vec![];
             let mut backward_transitions: Vec<usize> = vec![];
 
@@ -416,21 +547,41 @@ impl eframe::App for EnvoyApp {
                             let ecc_type = ECCStatus::from(status.state);
                             row.col(|ui| {
                                 if (ridx as i32) == MUTANT_ID {
-                                    ui.label(RichText::new(format!("ECC Envoy {} [MuTaNT]", ridx)).color(Color32::LIGHT_GREEN));
+                                    ui.label(
+                                        RichText::new(format!("ECC Envoy {} [MuTaNT]", ridx))
+                                            .color(Color32::LIGHT_GREEN),
+                                    );
                                 } else {
-                                    ui.label(RichText::new(format!("ECC Envoy {} [CoBo]", ridx)).color(Color32::LIGHT_GREEN));
+                                    ui.label(
+                                        RichText::new(format!("ECC Envoy {} [CoBo]", ridx))
+                                            .color(Color32::LIGHT_GREEN),
+                                    );
                                 }
                             });
                             row.col(|ui| {
                                 ui.label(RichText::new(format!("{}", ecc_type)).color(&ecc_type));
                             });
                             row.col(|ui| {
-                                if ui.add_enabled(ecc_type.can_go_backward(), Button::new(RichText::new("\u{25C0}").color(Color32::RED))).clicked() {
+                                if ui
+                                    .add_enabled(
+                                        ecc_type.can_go_backward(),
+                                        Button::new(RichText::new("\u{25C0}").color(Color32::RED)),
+                                    )
+                                    .clicked()
+                                {
                                     forward_transitions.push(ridx);
                                 }
                             });
                             row.col(|ui| {
-                                if ui.add_enabled(ecc_type.can_go_forward(), Button::new(RichText::new("\u{25B6}").color(Color32::GREEN))).clicked() {
+                                if ui
+                                    .add_enabled(
+                                        ecc_type.can_go_forward(),
+                                        Button::new(
+                                            RichText::new("\u{25B6}").color(Color32::GREEN),
+                                        ),
+                                    )
+                                    .clicked()
+                                {
                                     backward_transitions.push(ridx);
                                 }
                             });
@@ -443,11 +594,18 @@ impl eframe::App for EnvoyApp {
         });
 
         //Central panel showing Data router info. Use central to allow for dynamic resizing of the window.
-        eframe::egui::CentralPanel::default()
-        .show(ctx,|ui| {
+        eframe::egui::CentralPanel::default().show(ctx, |ui| {
             let surv_system_stat = self.status.get_surveyor_system_status();
-            ui.label(RichText::new("Data Router Status").color(Color32::LIGHT_BLUE).size(18.0));
-            ui.label(RichText::new(format!("System Status: {}", surv_system_stat)).color(&surv_system_stat).size(16.0));
+            ui.label(
+                RichText::new("Data Router Status")
+                    .color(Color32::LIGHT_BLUE)
+                    .size(18.0),
+            );
+            ui.label(
+                RichText::new(format!("System Status: {}", surv_system_stat))
+                    .color(&surv_system_stat)
+                    .size(16.0),
+            );
             ui.separator();
             ui.label(RichText::new("Status Board").size(16.0));
             ui.separator();
@@ -498,7 +656,10 @@ impl eframe::App for EnvoyApp {
                             let status = &surveyor_status[ridx];
                             let disk_stat = SurveyorDiskStatus::from(status.disk_status.as_str());
                             row.col(|ui| {
-                                ui.label(RichText::new(format!("Data Router {}", ridx)).color(Color32::LIGHT_GREEN));
+                                ui.label(
+                                    RichText::new(format!("Data Router {}", ridx))
+                                        .color(Color32::LIGHT_GREEN),
+                                );
                             });
                             row.col(|ui| {
                                 let surv_type = SurveyorState::from(status.state);
@@ -514,7 +675,10 @@ impl eframe::App for EnvoyApp {
                                 ui.label(RichText::new(format!("{}", status.files)));
                             });
                             row.col(|ui| {
-                                ui.label(RichText::new(format!("{}", human_bytes::human_bytes(status.bytes_used as f64))));
+                                ui.label(RichText::new(format!(
+                                    "{}",
+                                    human_bytes::human_bytes(status.bytes_used as f64)
+                                )));
                             });
                             row.col(|ui| {
                                 ui.label(RichText::new(format!("{}", status.data_rate)));
@@ -523,16 +687,17 @@ impl eframe::App for EnvoyApp {
                                 ui.label(RichText::new(status.percent_used.clone()));
                             });
                             row.col(|ui| {
-                                ui.label(RichText::new(format!("{}", human_bytes::human_bytes(status.disk_space as f64))));
+                                ui.label(RichText::new(format!(
+                                    "{}",
+                                    human_bytes::human_bytes(status.disk_space as f64)
+                                )));
                             });
                         })
                     });
             });
-                
+
             ui.separator();
         });
-        
-        
 
         ctx.request_repaint_after(std::time::Duration::from_secs(1));
     }

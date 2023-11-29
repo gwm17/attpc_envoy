@@ -29,7 +29,7 @@ pub enum ECCStatus {
     Ready,
     Running,
     ErrorStat,
-    Inconsistent
+    Inconsistent,
 }
 
 impl std::fmt::Display for ECCStatus {
@@ -43,7 +43,7 @@ impl std::fmt::Display for ECCStatus {
             Self::Ready => write!(f, "{ECC_READY_STATUS}"),
             Self::Running => write!(f, "{ECC_RUNNING_STATUS}"),
             Self::ErrorStat => write!(f, "{ECC_ERROR_STATUS}"),
-            Self::Inconsistent => write!(f, "{ECC_INCONSISTENT_STATUS}")
+            Self::Inconsistent => write!(f, "{ECC_INCONSISTENT_STATUS}"),
         }
     }
 }
@@ -59,7 +59,7 @@ impl Into<String> for ECCStatus {
             Self::Ready => ECC_READY_STATUS,
             Self::Running => ECC_RUNNING_STATUS,
             Self::ErrorStat => ECC_ERROR_STATUS,
-            Self::Inconsistent => ECC_INCONSISTENT_STATUS
+            Self::Inconsistent => ECC_INCONSISTENT_STATUS,
         })
     }
 }
@@ -74,7 +74,7 @@ impl Into<i32> for ECCStatus {
             Self::Ready => 4,
             Self::Running => 5,
             Self::Busy => 6,
-            _ => -1
+            _ => -1,
         }
     }
 }
@@ -92,7 +92,7 @@ impl TryFrom<String> for ECCStatus {
             ECC_RUNNING_STATUS => Ok(Self::Running),
             ECC_ERROR_STATUS => Ok(Self::ErrorStat),
             ECC_INCONSISTENT_STATUS => Ok(Self::Inconsistent),
-            _ => Err(Self::Error::BadString(value))
+            _ => Err(Self::Error::BadString(value)),
         }
     }
 }
@@ -107,7 +107,7 @@ impl From<i32> for ECCStatus {
             4 => ECCStatus::Ready,
             5 => ECCStatus::Running,
             6 => ECCStatus::Busy,
-            _ => ECCStatus::ErrorStat
+            _ => ECCStatus::ErrorStat,
         }
     }
 }
@@ -118,16 +118,16 @@ impl ECCStatus {
             ECCStatus::Idle => ECCOperation::Describe,
             ECCStatus::Described => ECCOperation::Prepare,
             ECCStatus::Prepared => ECCOperation::Configure,
-            _ => ECCOperation::Invalid
+            _ => ECCOperation::Invalid,
         }
     }
-    
+
     pub fn get_backward_operation(&self) -> ECCOperation {
         match self {
             ECCStatus::Ready => ECCOperation::Undo,
             ECCStatus::Prepared => ECCOperation::Undo,
             ECCStatus::Described => ECCOperation::Undo,
-            _ => ECCOperation::Invalid
+            _ => ECCOperation::Invalid,
         }
     }
 
@@ -136,7 +136,7 @@ impl ECCStatus {
             ECCStatus::Idle => true,
             ECCStatus::Described => true,
             ECCStatus::Prepared => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -145,12 +145,10 @@ impl ECCStatus {
             ECCStatus::Ready => true,
             ECCStatus::Prepared => true,
             ECCStatus::Described => true,
-            _ => false
+            _ => false,
         }
     }
 }
-
-
 
 #[derive(Debug, Clone)]
 pub enum ECCOperation {
@@ -161,7 +159,7 @@ pub enum ECCOperation {
     Undo,
     Breakup,
     Stop,
-    Invalid
+    Invalid,
 }
 
 impl std::fmt::Display for ECCOperation {
@@ -174,7 +172,7 @@ impl std::fmt::Display for ECCOperation {
             Self::Undo => write!(f, "{ECC_UNDO_OP}"),
             Self::Breakup => write!(f, "{ECC_BREAKUP_OP}"),
             Self::Stop => write!(f, "{ECC_STOP_OP}"),
-            Self::Invalid => write!(f, "{ECC_INVALID_OP}")
+            Self::Invalid => write!(f, "{ECC_INVALID_OP}"),
         }
     }
 }
@@ -191,14 +189,14 @@ impl TryFrom<String> for ECCOperation {
             ECC_BREAKUP_OP => Ok(Self::Breakup),
             ECC_STOP_OP => Ok(Self::Stop),
             ECC_INVALID_OP => Ok(Self::Invalid),
-            _ => Err(Self::Error::BadString(value))
+            _ => Err(Self::Error::BadString(value)),
         }
     }
 }
 
 impl Into<String> for ECCOperation {
     fn into(self) -> String {
-        String::from( match self {
+        String::from(match self {
             Self::Describe => ECC_DESCRIBE_OP,
             Self::Prepare => ECC_PREPARE_OP,
             Self::Configure => ECC_CONFIGURE_OP,
@@ -206,7 +204,7 @@ impl Into<String> for ECCOperation {
             Self::Undo => ECC_UNDO_OP,
             Self::Breakup => ECC_BREAKUP_OP,
             Self::Stop => ECC_STOP_OP,
-            Self::Invalid => ECC_INVALID_OP
+            Self::Invalid => ECC_INVALID_OP,
         })
     }
 }

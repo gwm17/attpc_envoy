@@ -1,9 +1,9 @@
+use crate::envoy::constants::{MUTANT_ID, NUMBER_OF_MODULES};
 use crate::envoy::ecc_envoy::{ECCOperationResponse, ECCStatusResponse};
 use crate::envoy::ecc_operation::ECCStatus;
-use crate::envoy::surveyor_envoy::SurveyorResponse;
-use crate::envoy::message::{EmbassyMessage, MessageKind};
 use crate::envoy::error::EmbassyError;
-use crate::envoy::constants::{NUMBER_OF_MODULES, MUTANT_ID};
+use crate::envoy::message::{EmbassyMessage, MessageKind};
+use crate::envoy::surveyor_envoy::SurveyorResponse;
 use crate::envoy::surveyor_state::SurveyorState;
 
 /// # Status Manager
@@ -14,15 +14,17 @@ use crate::envoy::surveyor_state::SurveyorState;
 #[derive(Debug)]
 pub struct StatusManager {
     ecc_status: Vec<ECCStatusResponse>,
-    surveyor_status: Vec<SurveyorResponse>
+    surveyor_status: Vec<SurveyorResponse>,
 }
 
 impl StatusManager {
-
     pub fn new() -> Self {
         let eccs = vec![ECCStatusResponse::default(); NUMBER_OF_MODULES as usize];
-        let surs = vec![SurveyorResponse::default(); (NUMBER_OF_MODULES-1) as usize];
-        return Self { ecc_status: eccs, surveyor_status: surs }
+        let surs = vec![SurveyorResponse::default(); (NUMBER_OF_MODULES - 1) as usize];
+        return Self {
+            ecc_status: eccs,
+            surveyor_status: surs,
+        };
     }
 
     pub fn reset(&mut self) {
@@ -44,19 +46,33 @@ impl StatusManager {
                 MessageKind::ECCOperation => {
                     let resp: ECCOperationResponse = message.try_into()?;
                     if resp.error_code != 0 {
-                        tracing::error!("ECC Operation failed with error code {} for module id {}: {}", resp.error_code, module_id, resp.error_message);
+                        tracing::error!(
+                            "ECC Operation failed with error code {} for module id {}: {}",
+                            resp.error_code,
+                            module_id,
+                            resp.error_message
+                        );
                     } else {
-                        tracing::info!("ECC Operation completed for module id {}: {}", module_id, resp.text);
+                        tracing::info!(
+                            "ECC Operation completed for module id {}: {}",
+                            module_id,
+                            resp.text
+                        );
                     }
-                },
+                }
                 MessageKind::ECCStatus => {
                     let resp: ECCStatusResponse = message.try_into()?;
                     if resp.error_code != 0 {
-                        tracing::error!("ECC Status failed with error code {} for module id {}: {}", resp.error_code, module_id, resp.error_message)
+                        tracing::error!(
+                            "ECC Status failed with error code {} for module id {}: {}",
+                            resp.error_code,
+                            module_id,
+                            resp.error_message
+                        )
                     }
 
                     self.ecc_status[module_id as usize] = resp;
-                },
+                }
                 MessageKind::Surveyor => {
                     let resp: SurveyorResponse = message.try_into()?;
                     self.surveyor_status[module_id as usize] = resp;
@@ -83,7 +99,7 @@ impl StatusManager {
         self.ecc_status[id] = status;
     }
 
-    /// Retrieve the system status. System status matches the envoy status if all 
+    /// Retrieve the system status. System status matches the envoy status if all
     /// envoys have the same status. If not, the system status is Inconsistent.
     pub fn get_system_ecc_status(&self) -> ECCStatus {
         let sys_status = self.ecc_status[0].state;
@@ -99,7 +115,7 @@ impl StatusManager {
         let sys_stat = self.get_system_ecc_status();
         match sys_stat {
             ECCStatus::Ready => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -107,13 +123,13 @@ impl StatusManager {
         let sys_stat = self.get_system_ecc_status();
         match sys_stat {
             ECCStatus::Running => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_all_but_mutant_running(&self) -> bool {
         let sys_status = self.ecc_status[0].state;
-        for status in self.ecc_status[..((NUMBER_OF_MODULES-1) as usize)].iter() {
+        for status in self.ecc_status[..((NUMBER_OF_MODULES - 1) as usize)].iter() {
             if sys_status != status.state {
                 return false;
             }
@@ -121,14 +137,14 @@ impl StatusManager {
 
         match ECCStatus::from(sys_status) {
             ECCStatus::Running => return true,
-            _ => return false
+            _ => return false,
         }
     }
 
     pub fn is_mutant_stopped(&self) -> bool {
         match ECCStatus::from(self.ecc_status[MUTANT_ID as usize].state) {
             ECCStatus::Running => return false,
-            _ => return true
+            _ => return true,
         }
     }
 
@@ -136,7 +152,7 @@ impl StatusManager {
         &self.surveyor_status
     }
 
-    /// Retrieve the system status. System status matches the envoy status if all 
+    /// Retrieve the system status. System status matches the envoy status if all
     /// envoys have the same status. If not, the system status is Inconsistent.
     pub fn get_surveyor_system_status(&self) -> SurveyorState {
         let sys_status = self.surveyor_status[0].state;

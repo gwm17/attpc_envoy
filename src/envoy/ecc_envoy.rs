@@ -1,14 +1,14 @@
-use super::message::EmbassyMessage;
+use super::constants::{ADDRESS_START, LISTENER_PORT, MUTANT_ID, NUMBER_OF_MODULES, PROTOCOL};
 use super::ecc_operation::ECCOperation;
 use super::error::EnvoyError;
-use super::constants::{NUMBER_OF_MODULES, MUTANT_ID, LISTENER_PORT, PROTOCOL, ADDRESS_START};
+use super::message::EmbassyMessage;
 use reqwest::{Client, Response};
-use std::time::Duration;
-use std::collections::HashMap;
-use tokio::sync::mpsc;
-use tokio::sync::broadcast;
-use tokio::task::JoinHandle;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::time::Duration;
+use tokio::sync::broadcast;
+use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 const ECC_URL_PORT: i32 = 8083;
 
@@ -31,26 +31,26 @@ const ECC_SOAP_FOOTER: &str = r#"
 /// Native format is XML
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
 pub struct ECCOperationResponse {
-    #[serde(rename="ErrorCode")]
+    #[serde(rename = "ErrorCode")]
     pub error_code: i32,
-    #[serde(rename="ErrorMessage")]
+    #[serde(rename = "ErrorMessage")]
     pub error_message: String,
-    #[serde(rename="Text")]
-    pub text: String
+    #[serde(rename = "Text")]
+    pub text: String,
 }
 
 /// Response type for ECC status query
 /// Native format is XML
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
 pub struct ECCStatusResponse {
-    #[serde(rename="ErrorCode")]
+    #[serde(rename = "ErrorCode")]
     pub error_code: i32,
-    #[serde(rename="ErrorMessage")]
+    #[serde(rename = "ErrorMessage")]
     pub error_message: String,
-    #[serde(rename="State")]
+    #[serde(rename = "State")]
     pub state: i32,
-    #[serde(rename="Transition")]
-    pub transition: i32
+    #[serde(rename = "Transition")]
+    pub transition: i32,
 }
 
 #[derive(Debug, Clone)]
@@ -58,24 +58,30 @@ pub struct ECCConfig {
     id: i32,
     experiment: String,
     address: String,
-    url: String
+    url: String,
 }
 
 impl ECCConfig {
     pub fn new(id: i32, experiment: &str) -> ECCConfig {
         let address = match id {
             MUTANT_ID => format!("{ADDRESS_START}.1"),
-            _ => format!("{ADDRESS_START}.{}", 60+id)
+            _ => format!("{ADDRESS_START}.{}", 60 + id),
         };
         let url = Self::url(&address);
-        return ECCConfig { id, experiment: experiment.to_string(), address, url};
+        return ECCConfig {
+            id,
+            experiment: experiment.to_string(),
+            address,
+            url,
+        };
     }
 
     fn compose_config_body(&self) -> String {
         let describe = self.describe();
         let prepare = self.experiment.clone();
         let configure = self.experiment.clone();
-        format!(r#"<configID>
+        format!(
+            r#"<configID>
                         <ConfigId>
                             <SubConfigId type="describe">
                                 {describe}
@@ -87,34 +93,37 @@ impl ECCConfig {
                                 {configure}
                             </SubConfigId>
                         </ConfigId>
-                    </configID>"#)
+                    </configID>"#
+        )
     }
 
     fn compose_data_link_body(&self) -> String {
         let source = self.source();
         let ip = self.address.clone();
         let router = self.data_router();
-        format!(r#"<table>
+        format!(
+            r#"<table>
                         <DataLinkSet>
                             <DataLink>
                                 <DataSender id="{source}" />
                                 <DataRouter ipAddress="{ip}" name="{router}" port="{LISTENER_PORT}" type="{PROTOCOL}" />
                             </DataLink>
                         </DataLinkSet>
-                    </table>"#)
+                    </table>"#
+        )
     }
 
     fn describe(&self) -> String {
         match self.id {
             MUTANT_ID => self.experiment.clone(),
-            _ => format!("cobo{}", self.id)
+            _ => format!("cobo{}", self.id),
         }
     }
 
     fn source(&self) -> String {
         match self.id {
             MUTANT_ID => format!("Mutant[master]"),
-            _ => format!("CoBo[{}]", self.id)
+            _ => format!("CoBo[{}]", self.id),
         }
     }
 
@@ -129,7 +138,7 @@ impl ECCConfig {
 
 /// # ECCEnvoy
 /// The structure encompassing an async task associated with the ECC Server system.
-/// ECCEnvoys have two modes, status check and transition. Transition envoys tell the server 
+/// ECCEnvoys have two modes, status check and transition. Transition envoys tell the server
 /// when to load/unload configuration data. Status check envoys simply check the status
 /// of the server every few seconds.
 #[derive(Debug)]
@@ -138,25 +147,36 @@ pub struct ECCEnvoy {
     connection: Client,
     incoming: mpsc::Receiver<EmbassyMessage>,
     outgoing: mpsc::Sender<EmbassyMessage>,
-    cancel: broadcast::Receiver<EmbassyMessage>
+    cancel: broadcast::Receiver<EmbassyMessage>,
 }
 
 impl ECCEnvoy {
-    pub fn new(config: ECCConfig, rx: mpsc::Receiver<EmbassyMessage>, tx: mpsc::Sender<EmbassyMessage>, cancel: broadcast::Receiver<EmbassyMessage>) -> Result<Self, EnvoyError> {
+    pub fn new(
+        config: ECCConfig,
+        rx: mpsc::Receiver<EmbassyMessage>,
+        tx: mpsc::Sender<EmbassyMessage>,
+        cancel: broadcast::Receiver<EmbassyMessage>,
+    ) -> Result<Self, EnvoyError> {
         //10s default timeouts
         let connection_out = Duration::from_secs(10);
         let req_timeout = Duration::from_secs(10);
 
         //Probably need some options here, for now just set some timeouts
         let client = Client::builder()
-                                .connect_timeout(connection_out)
-                                .timeout(req_timeout)
-                                .build()?;
-        return Ok(Self { config, connection: client, incoming: rx, outgoing: tx, cancel});
+            .connect_timeout(connection_out)
+            .timeout(req_timeout)
+            .build()?;
+        return Ok(Self {
+            config,
+            connection: client,
+            incoming: rx,
+            outgoing: tx,
+            cancel,
+        });
     }
 
     /// This one of the core task loops for an ECCEnvoy. Waits for a
-    /// message from the embassy to transition the configuration of 
+    /// message from the embassy to transition the configuration of
     /// an ECC Server.
     pub async fn wait_for_transition(&mut self) -> Result<(), EnvoyError> {
         loop {
@@ -199,29 +219,39 @@ impl ECCEnvoy {
         }
     }
 
-    async fn submit_transition(&self, message: EmbassyMessage) -> Result<EmbassyMessage, EnvoyError> {
+    async fn submit_transition(
+        &self,
+        message: EmbassyMessage,
+    ) -> Result<EmbassyMessage, EnvoyError> {
         let ecc_message = self.compose_ecc_transition_request(message)?;
-        let response = self.connection
-                                     .post(&self.config.url)
-                                     .header("ContentType", "text/xml")
-                                     .body(ecc_message)
-                                     .send().await?;
+        let response = self
+            .connection
+            .post(&self.config.url)
+            .header("ContentType", "text/xml")
+            .body(ecc_message)
+            .send()
+            .await?;
         let parsed_response = self.parse_ecc_operation_response(response).await?;
         Ok(parsed_response)
     }
 
     async fn submit_check_status(&self) -> Result<EmbassyMessage, EnvoyError> {
         let message = format!("{ECC_SOAP_HEADER}<GetStatus>\n</GetStatus>\n{ECC_SOAP_FOOTER}");
-        let response = self.connection
-                                .post(&self.config.url)
-                                .header("ContentType", "text/xml")
-                                .body(message)
-                                .send().await?;
+        let response = self
+            .connection
+            .post(&self.config.url)
+            .header("ContentType", "text/xml")
+            .body(message)
+            .send()
+            .await?;
         let parsed_response = self.parse_ecc_status_response(response).await?;
         Ok(parsed_response)
     }
 
-    async fn parse_ecc_operation_response(&self, response: Response) -> Result<EmbassyMessage, EnvoyError> {
+    async fn parse_ecc_operation_response(
+        &self,
+        response: Response,
+    ) -> Result<EmbassyMessage, EnvoyError> {
         let text = response.text().await?;
         let mut reader = quick_xml::Reader::from_str(&text);
         let mut parsed = ECCOperationResponse::default();
@@ -235,9 +265,7 @@ impl ECCEnvoy {
         let event = reader.read_event()?; //ErrorCode payload
         parsed.error_code = match event {
             quick_xml::events::Event::Text(t) => String::from_utf8(t.to_vec())?.parse()?,
-            _ => {
-                return Err(EnvoyError::XMLConversionError)
-            }
+            _ => return Err(EnvoyError::XMLConversionError),
         };
         reader.read_event()?; //ErrorCode end tag
         reader.read_event()?; //ErrorMesage start tag
@@ -257,13 +285,19 @@ impl ECCEnvoy {
         let event = reader.read_event()?; //Text payload
         parsed.text = match event {
             quick_xml::events::Event::Text(t) => String::from_utf8(t.to_vec())?,
-            _ => String::from("")
+            _ => String::from(""),
         };
 
-        Ok(EmbassyMessage::compose_ecc_response(serde_yaml::to_string(&parsed)?, self.config.id))
+        Ok(EmbassyMessage::compose_ecc_response(
+            serde_yaml::to_string(&parsed)?,
+            self.config.id,
+        ))
     }
 
-    async fn parse_ecc_status_response(&self, response: Response) -> Result<EmbassyMessage, EnvoyError> {
+    async fn parse_ecc_status_response(
+        &self,
+        response: Response,
+    ) -> Result<EmbassyMessage, EnvoyError> {
         let text = response.text().await?;
         let mut reader = quick_xml::Reader::from_str(&text);
         let mut parsed: ECCStatusResponse = ECCStatusResponse::default();
@@ -277,9 +311,7 @@ impl ECCEnvoy {
         let event = reader.read_event()?; //ErrorCode payload
         parsed.error_code = match event {
             quick_xml::events::Event::Text(t) => String::from_utf8(t.to_vec())?.parse()?,
-            _ => {
-                return Err(EnvoyError::XMLConversionError)
-            }
+            _ => return Err(EnvoyError::XMLConversionError),
         };
         reader.read_event()?; //ErrorCode end tag
         reader.read_event()?; //ErrorMesage start tag
@@ -299,33 +331,46 @@ impl ECCEnvoy {
         let event = reader.read_event()?; //State payload
         parsed.state = match event {
             quick_xml::events::Event::Text(t) => String::from_utf8(t.to_vec())?.parse()?,
-            _ => return Err(EnvoyError::XMLConversionError)
+            _ => return Err(EnvoyError::XMLConversionError),
         };
         reader.read_event()?; //State end tag
         reader.read_event()?; //Transition start tag
         let event = reader.read_event()?; //Transition payload
         parsed.transition = match event {
             quick_xml::events::Event::Text(t) => String::from_utf8(t.to_vec())?.parse()?,
-            _ => return Err(EnvoyError::XMLConversionError)
+            _ => return Err(EnvoyError::XMLConversionError),
         };
 
-        let status_response = EmbassyMessage::compose_ecc_status(serde_yaml::to_string(&parsed)?, self.config.id);
+        let status_response =
+            EmbassyMessage::compose_ecc_status(serde_yaml::to_string(&parsed)?, self.config.id);
         Ok(status_response)
     }
 
-    fn compose_ecc_transition_request(&self, message: EmbassyMessage) -> Result<String, EnvoyError> {
+    fn compose_ecc_transition_request(
+        &self,
+        message: EmbassyMessage,
+    ) -> Result<String, EnvoyError> {
         let op = ECCOperation::try_from(message.operation)?;
         let config = self.config.compose_config_body();
         let link = self.config.compose_data_link_body();
-        return Ok(format!("{ECC_SOAP_HEADER}<{op}>\n{config}{link}</{op}>\n{ECC_SOAP_FOOTER}"));
+        return Ok(format!(
+            "{ECC_SOAP_HEADER}<{op}>\n{config}{link}</{op}>\n{ECC_SOAP_FOOTER}"
+        ));
     }
-
 }
 
 /// Startup the ECC communication system
 /// Takes in a runtime, experiment name, and a channel to send data to the embassy. Spawns the ECCEnvoys with tasks to either wait for
 /// a command to transition that ECC DAQ or to periodically check the status of that particular ECC DAQ.
-pub fn startup_ecc_envoys(runtime: &mut tokio::runtime::Runtime, experiment: &str, ecc_tx: &mpsc::Sender<EmbassyMessage>, cancel: &broadcast::Sender<EmbassyMessage>) -> (Vec<JoinHandle<()>>, HashMap<i32, mpsc::Sender<EmbassyMessage>>) {
+pub fn startup_ecc_envoys(
+    runtime: &mut tokio::runtime::Runtime,
+    experiment: &str,
+    ecc_tx: &mpsc::Sender<EmbassyMessage>,
+    cancel: &broadcast::Sender<EmbassyMessage>,
+) -> (
+    Vec<JoinHandle<()>>,
+    HashMap<i32, mpsc::Sender<EmbassyMessage>>,
+) {
     let mut transition_switchboard = HashMap::new();
     let mut handles: Vec<JoinHandle<()>> = vec![];
 
@@ -337,20 +382,18 @@ pub fn startup_ecc_envoys(runtime: &mut tokio::runtime::Runtime, experiment: &st
         let this_cancel = cancel.subscribe();
         let handle = runtime.spawn(async move {
             match ECCEnvoy::new(config, ecc_rx, this_ecc_tx, this_cancel) {
-                Ok(mut ev) => {
-                    match ev.wait_for_transition().await {
-                        Ok(()) =>(),
-                        Err(e) => tracing::error!("ECC transition envoy ran into an error: {}", e)
-                    }
-                }
-                Err(e) => tracing::error!("Error creating ECC transition envoy: {}", e)
+                Ok(mut ev) => match ev.wait_for_transition().await {
+                    Ok(()) => (),
+                    Err(e) => tracing::error!("ECC transition envoy ran into an error: {}", e),
+                },
+                Err(e) => tracing::error!("Error creating ECC transition envoy: {}", e),
             }
         });
 
         transition_switchboard.insert(id, embassy_tx);
         handles.push(handle);
     }
-    
+
     //spin up the status envoys
     for id in 0..NUMBER_OF_MODULES {
         let config = ECCConfig::new(id, experiment);
@@ -361,13 +404,11 @@ pub fn startup_ecc_envoys(runtime: &mut tokio::runtime::Runtime, experiment: &st
         let this_cancel = cancel.subscribe();
         let handle = runtime.spawn(async move {
             match ECCEnvoy::new(config, ecc_rx, this_ecc_tx, this_cancel) {
-                Ok(mut ev) => {
-                    match ev.wait_check_status().await {
-                        Ok(()) =>(),
-                        Err(e) => tracing::error!("ECC status envoy ran into an error: {}", e)
-                    }
-                }
-                Err(e) => tracing::error!("Error creating ECC status envoy: {}", e)
+                Ok(mut ev) => match ev.wait_check_status().await {
+                    Ok(()) => (),
+                    Err(e) => tracing::error!("ECC status envoy ran into an error: {}", e),
+                },
+                Err(e) => tracing::error!("Error creating ECC status envoy: {}", e),
             }
         });
 
