@@ -1,0 +1,19 @@
+name: Cargo Build
+run-name: ${{ github.actor }} building attpc_envoy
+on: [push]
+
+env: 
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build_and_test:
+    name: Rust project - latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macOS-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup update stable
+      - run: cargo build --verbose
