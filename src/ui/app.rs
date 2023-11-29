@@ -4,7 +4,7 @@ use super::status_manager::StatusManager;
 use crate::envoy::embassy::{Embassy, connect_embassy};
 use crate::envoy::message::EmbassyMessage;
 use crate::envoy::ecc_operation::{ECCStatus, ECCOperation};
-use crate::envoy::surveyor_state::SurveyorState;
+use crate::envoy::surveyor_state::{SurveyorState, SurveyorDiskStatus};
 use crate::envoy::constants::{NUMBER_OF_MODULES, MUTANT_ID};
 use crate::command::command::{execute, CommandName, CommandStatus};
 
@@ -13,6 +13,8 @@ use std::fs::File;
 use std::io::{Read, Write};
 use eframe::egui::{RichText, Color32};
 use eframe::egui::widgets::Button;
+
+const DEFAULT_TEXT_COLOR: Color32 = Color32::LIGHT_GRAY;
 
 /// # EnvoyApp
 /// EnvoyApp implements the eframe::App trait, and holds most of the controlling functionality of the program,
@@ -30,7 +32,10 @@ pub struct EnvoyApp {
 
 impl EnvoyApp {
     /// Create an app from a tokio runtime and eframe context
-    pub fn new(_cc: &eframe::CreationContext<'_>, runtime: tokio::runtime::Runtime) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, runtime: tokio::runtime::Runtime) -> Self {
+        let mut visuals = eframe::egui::Visuals::dark();
+        visuals.override_text_color = Some(DEFAULT_TEXT_COLOR);
+        cc.egui_ctx.set_visuals(visuals);
         EnvoyApp { config: Config::new(), runtime, embassy: None, envoy_handles: None, status: StatusManager::new(), graphs: GraphManager::new(10), max_graph_points: 10 }
     }
 
@@ -306,17 +311,17 @@ impl eframe::App for EnvoyApp {
             ui.separator();
             ui.label(RichText::new("Configuration").color(Color32::LIGHT_BLUE).size(18.0));
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Experiment").color(Color32::WHITE).size(16.0));
+                ui.label(RichText::new("Experiment").size(16.0));
                 ui.text_edit_singleline(&mut self.config.experiment);
             });
             
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Description").color(Color32::WHITE).size(16.0));
+                ui.label(RichText::new("Description").size(16.0));
                 ui.text_edit_singleline(&mut self.config.description);
             });
             
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Run Number").color(Color32::WHITE).size(16.0));
+                ui.label(RichText::new("Run Number").size(16.0));
                 ui.add(eframe::egui::widgets::DragValue::new(&mut self.config.run_number).speed(1));
             });
             ui.separator();
@@ -491,6 +496,7 @@ impl eframe::App for EnvoyApp {
                         let surveyor_status = self.status.get_surveyor_status();
                         body.rows(40.0, surveyor_status.len(), |ridx, mut row| {
                             let status = &surveyor_status[ridx];
+                            let disk_stat = SurveyorDiskStatus::from(status.disk_status.as_str());
                             row.col(|ui| {
                                 ui.label(RichText::new(format!("Data Router {}", ridx)).color(Color32::LIGHT_GREEN));
                             });
@@ -502,7 +508,7 @@ impl eframe::App for EnvoyApp {
                                 ui.label(RichText::new(status.location.clone()));
                             });
                             row.col(|ui| {
-                                ui.label(RichText::new(status.disk_status.clone()));
+                                ui.label(RichText::new(format!("{}", disk_stat)).color(&disk_stat));
                             });
                             row.col(|ui| {
                                 ui.label(RichText::new(format!("{}", status.files)));

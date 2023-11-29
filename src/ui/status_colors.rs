@@ -1,5 +1,5 @@
 use crate::envoy::ecc_operation::ECCStatus;
-use crate::envoy::surveyor_state::SurveyorState;
+use crate::envoy::surveyor_state::{SurveyorState, SurveyorDiskStatus};
 use eframe::egui::Color32;
 
 impl Into<Color32> for &ECCStatus {
@@ -23,6 +23,16 @@ impl Into<Color32> for &SurveyorState {
             SurveyorState::Offline => Color32::GOLD,
             SurveyorState::Online => Color32::GREEN,
             _ => Color32::RED
+        }
+    }
+}
+
+impl Into<Color32> for &SurveyorDiskStatus {
+    fn into(self) -> Color32 {
+        match self {
+            SurveyorDiskStatus::Filled => Color32::GOLD,
+            SurveyorDiskStatus::Empty => Color32::GREEN,
+            SurveyorDiskStatus::NA => Color32::LIGHT_GRAY
         }
     }
 }
