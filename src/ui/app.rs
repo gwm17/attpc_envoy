@@ -161,12 +161,12 @@ impl EnvoyApp {
             return;
         }
         for id in ids {
-            let status = &self.status.get_ecc_status()[id];
+            let status = &self.status.get_ecc_status(id);
             let operation: ECCOperation;
             if is_forward {
-                operation = ECCStatus::from(status.state).get_forward_operation();
+                operation = status.get_forward_operation();
             } else {
-                operation = ECCStatus::from(status.state).get_backward_operation();
+                operation = status.get_backward_operation();
             }
             match operation {
                 ECCOperation::Invalid => (),
@@ -187,9 +187,39 @@ impl EnvoyApp {
     }
 
     /// Transition all of the envoys forward (Progress)
+    /// This is slightly more complicated as order matters for two of the phases (Prepare and Configure)
     fn forward_transition_all(&mut self) {
+        let system = self.status.get_system_ecc_status();
+        let all_ids_but_mutant: Vec<usize> = (0..((NUMBER_OF_MODULES - 1) as usize)).collect();
         let ids: Vec<usize> = (0..(NUMBER_OF_MODULES as usize)).collect();
-        self.transition_ecc(ids, true)
+        match system.get_forward_operation() {
+            //Describe operation: order doesn't matter
+            ECCOperation::Describe => self.transition_ecc(ids, true),
+            //Prepare operation: mutant first, then cobos
+            ECCOperation::Prepare => {
+                self.transition_ecc(vec![MUTANT_ID as usize], true);
+                loop {
+                    if self.status.is_mutant_prepared() {
+                        break;
+                    }
+                }
+                self.transition_ecc(all_ids_but_mutant, true)
+            }
+            //Configure operation: cobos first, then mutant
+            ECCOperation::Configure => {
+                self.transition_ecc(all_ids_but_mutant, true);
+                loop {
+                    if self.status.is_all_but_mutant_ready() {
+                        break;
+                    }
+                }
+                self.transition_ecc(vec![MUTANT_ID as usize], true)
+            }
+            _ => tracing::error!(
+                "Tried to do some illegal forward transition all: {}",
+                system.get_forward_operation()
+            ),
+        }
     }
 
     /// Transition all of the envoys backward (Regress)
@@ -210,7 +240,7 @@ impl EnvoyApp {
         //Check the run number status using the shell scripting engine
         match execute(
             CommandName::CheckRunExists,
-            self.status.get_surveyor_status(),
+            self.status.get_surveyor_status_response(),
             &self.config.experiment,
             &self.config.run_number,
         ) {
@@ -303,7 +333,7 @@ impl EnvoyApp {
 
         match execute(
             CommandName::MoveGrawFiles,
-            self.status.get_surveyor_status(),
+            self.status.get_surveyor_status_response(),
             &self.config.experiment,
             &self.config.run_number,
         ) {
@@ -316,7 +346,7 @@ impl EnvoyApp {
 
         match execute(
             CommandName::BackupConfig,
-            self.status.get_surveyor_status(),
+            self.status.get_surveyor_status_response(),
             &self.config.experiment,
             &self.config.run_number,
         ) {
@@ -541,7 +571,7 @@ impl eframe::App for EnvoyApp {
                         });
                     })
                     .body(|body| {
-                        let ecc_status = self.status.get_ecc_status();
+                        let ecc_status = self.status.get_ecc_status_response();
                         body.rows(40.0, ecc_status.len(), |ridx, mut row| {
                             let status = &ecc_status[ridx];
                             let ecc_type = ECCStatus::from(status.state);
@@ -575,7 +605,7 @@ impl eframe::App for EnvoyApp {
                             row.col(|ui| {
                                 if ui
                                     .add_enabled(
-                                        ecc_type.can_go_forward(),
+                                        self.status.can_ecc_go_forward(ridx),
                                         Button::new(
                                             RichText::new("\u{25B6}").color(Color32::GREEN),
                                         ),
@@ -651,7 +681,7 @@ impl eframe::App for EnvoyApp {
                         });
                     })
                     .body(|body| {
-                        let surveyor_status = self.status.get_surveyor_status();
+                        let surveyor_status = self.status.get_surveyor_status_response();
                         body.rows(40.0, surveyor_status.len(), |ridx, mut row| {
                             let status = &surveyor_status[ridx];
                             let disk_stat = SurveyorDiskStatus::from(status.disk_status.as_str());

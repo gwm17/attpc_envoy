@@ -19,7 +19,7 @@ const ECC_BREAKUP_OP: &str = "Breakup";
 const ECC_STOP_OP: &str = "Stop";
 const ECC_INVALID_OP: &str = "Invalid";
 
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ECCStatus {
     Offline,
     Busy,
@@ -124,7 +124,7 @@ impl ECCStatus {
 
     pub fn get_backward_operation(&self) -> ECCOperation {
         match self {
-            ECCStatus::Ready => ECCOperation::Undo,
+            ECCStatus::Ready => ECCOperation::Breakup,
             ECCStatus::Prepared => ECCOperation::Undo,
             ECCStatus::Described => ECCOperation::Undo,
             _ => ECCOperation::Invalid,

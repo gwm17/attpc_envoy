@@ -85,7 +85,7 @@ impl StatusManager {
         Ok(())
     }
 
-    pub fn get_ecc_status(&self) -> &[ECCStatusResponse] {
+    pub fn get_ecc_status_response(&self) -> &[ECCStatusResponse] {
         &self.ecc_status
     }
 
@@ -141,15 +141,51 @@ impl StatusManager {
         }
     }
 
+    pub fn is_all_but_mutant_ready(&self) -> bool {
+        let sys_status = self.ecc_status[0].state;
+        for status in self.ecc_status[..((NUMBER_OF_MODULES - 1) as usize)].iter() {
+            if sys_status != status.state {
+                return false;
+            }
+        }
+
+        match ECCStatus::from(sys_status) {
+            ECCStatus::Ready => return true,
+            _ => return false,
+        }
+    }
+
     pub fn is_mutant_stopped(&self) -> bool {
-        match ECCStatus::from(self.ecc_status[MUTANT_ID as usize].state) {
+        match self.get_ecc_status(MUTANT_ID as usize) {
             ECCStatus::Running => return false,
             _ => return true,
         }
     }
 
-    pub fn get_surveyor_status(&self) -> &[SurveyorResponse] {
+    pub fn is_mutant_prepared(&self) -> bool {
+        match self.get_ecc_status(MUTANT_ID as usize) {
+            ECCStatus::Prepared => return false,
+            _ => return true,
+        }
+    }
+
+    pub fn get_surveyor_status_response(&self) -> &[SurveyorResponse] {
         &self.surveyor_status
+    }
+
+    pub fn get_ecc_status(&self, id: usize) -> ECCStatus {
+        return ECCStatus::from(self.ecc_status[id].state);
+    }
+
+    pub fn can_ecc_go_forward(&self, id: usize) -> bool {
+        let status = self.get_ecc_status(id);
+        if status == ECCStatus::Described && id != (MUTANT_ID as usize) {
+            return self.is_mutant_prepared();
+        } else if status == ECCStatus::Prepared && id == (MUTANT_ID as usize) {
+            return self.is_all_but_mutant_ready();
+        } else {
+            return status.can_go_forward();
+        }
     }
 
     /// Retrieve the system status. System status matches the envoy status if all
@@ -162,5 +198,10 @@ impl StatusManager {
             }
         }
         return SurveyorState::from(sys_status);
+    }
+
+    #[allow(dead_code)]
+    pub fn get_surveyor_status(&self, id: usize) -> SurveyorState {
+        return SurveyorState::from(self.surveyor_status[id].state);
     }
 }
