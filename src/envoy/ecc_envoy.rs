@@ -31,11 +31,8 @@ const ECC_SOAP_FOOTER: &str = r#"
 /// Native format is XML
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
 pub struct ECCOperationResponse {
-    #[serde(rename = "ErrorCode")]
     pub error_code: i32,
-    #[serde(rename = "ErrorMessage")]
     pub error_message: String,
-    #[serde(rename = "Text")]
     pub text: String,
 }
 
@@ -43,13 +40,9 @@ pub struct ECCOperationResponse {
 /// Native format is XML
 #[derive(Deserialize, Serialize, Debug, Default, Clone)]
 pub struct ECCStatusResponse {
-    #[serde(rename = "ErrorCode")]
     pub error_code: i32,
-    #[serde(rename = "ErrorMessage")]
     pub error_message: String,
-    #[serde(rename = "State")]
     pub state: i32,
-    #[serde(rename = "Transition")]
     pub transition: i32,
 }
 
@@ -157,9 +150,9 @@ impl ECCEnvoy {
         tx: mpsc::Sender<EmbassyMessage>,
         cancel: broadcast::Receiver<EmbassyMessage>,
     ) -> Result<Self, EnvoyError> {
-        //10s default timeouts
-        let connection_out = Duration::from_secs(10);
-        let req_timeout = Duration::from_secs(10);
+        //120s (2min) default timeouts to match ECCServer/Client
+        let connection_out = Duration::from_secs(120);
+        let req_timeout = Duration::from_secs(120);
 
         //Probably need some options here, for now just set some timeouts
         let client = Client::builder()
@@ -211,7 +204,7 @@ impl ECCEnvoy {
                         self.outgoing.send(response).await?
                     } else {
                         let response = ECCStatusResponse { error_code: 0, error_message: String::from(""), state: 0, transition: 0 };
-                        let message = EmbassyMessage::compose_ecc_response(serde_yaml::to_string(&response)?, self.config.id);
+                        let message = EmbassyMessage::compose_ecc_status(serde_yaml::to_string(&response)?, self.config.id);
                         self.outgoing.send(message).await?
                     }
                 }
@@ -236,7 +229,7 @@ impl ECCEnvoy {
     }
 
     async fn submit_check_status(&self) -> Result<EmbassyMessage, EnvoyError> {
-        let message = format!("{ECC_SOAP_HEADER}<GetStatus>\n</GetStatus>\n{ECC_SOAP_FOOTER}");
+        let message = format!("{ECC_SOAP_HEADER}<GetState>\n</GetState>\n{ECC_SOAP_FOOTER}");
         let response = self
             .connection
             .post(&self.config.url)

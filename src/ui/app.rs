@@ -599,7 +599,7 @@ impl eframe::App for EnvoyApp {
                                     )
                                     .clicked()
                                 {
-                                    forward_transitions.push(ridx);
+                                    backward_transitions.push(ridx);
                                 }
                             });
                             row.col(|ui| {
@@ -612,7 +612,7 @@ impl eframe::App for EnvoyApp {
                                     )
                                     .clicked()
                                 {
-                                    backward_transitions.push(ridx);
+                                    forward_transitions.push(ridx);
                                 }
                             });
                         });

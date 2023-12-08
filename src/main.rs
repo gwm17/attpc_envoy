@@ -8,7 +8,7 @@ use ui::app::EnvoyApp;
 fn main() {
     //Create the async runtime
     let runtime: tokio::runtime::Runtime = Builder::new_multi_thread()
-        .worker_threads(1)
+        .worker_threads(5)
         .enable_time()
         .enable_io()
         .build()
