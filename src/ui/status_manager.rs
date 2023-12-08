@@ -15,15 +15,18 @@ use crate::envoy::surveyor_state::SurveyorState;
 pub struct StatusManager {
     ecc_status: Vec<ECCStatusResponse>,
     surveyor_status: Vec<SurveyorResponse>,
+    ecc_holds: Vec<bool>
 }
 
 impl StatusManager {
     pub fn new() -> Self {
         let eccs = vec![ECCStatusResponse::default(); NUMBER_OF_MODULES as usize];
         let surs = vec![SurveyorResponse::default(); (NUMBER_OF_MODULES - 1) as usize];
+        let holds = vec![false; NUMBER_OF_MODULES as usize];
         return Self {
             ecc_status: eccs,
             surveyor_status: surs,
+            ecc_holds: holds
         };
     }
 
@@ -54,11 +57,11 @@ impl StatusManager {
                         );
                     } else {
                         tracing::info!(
-                            "ECC Operation completed for module id {}: {}",
-                            module_id,
-                            resp.text
+                            "ECC Operation completed for module id {}",
+                            module_id
                         );
                     }
+                    self.ecc_holds[module_id as usize] = false;
                 }
                 MessageKind::ECCStatus => {
                     let resp: ECCStatusResponse = message.try_into()?;
@@ -71,7 +74,9 @@ impl StatusManager {
                         )
                     }
 
-                    self.ecc_status[module_id as usize] = resp;
+                    if self.ecc_holds[module_id as usize] == false {
+                        self.ecc_status[module_id as usize] = resp;
+                    }
                 }
                 MessageKind::Surveyor => {
                     let resp: SurveyorResponse = message.try_into()?;
@@ -87,16 +92,6 @@ impl StatusManager {
 
     pub fn get_ecc_status_response(&self) -> &[ECCStatusResponse] {
         &self.ecc_status
-    }
-
-    pub fn set_ecc_status_transition(&mut self, id: usize) {
-        if id as i32 > MUTANT_ID {
-            return;
-        }
-
-        let mut status = ECCStatusResponse::default();
-        status.state = ECCStatus::Busy.into();
-        self.ecc_status[id] = status;
     }
 
     /// Retrieve the system status. System status matches the envoy status if all
@@ -164,8 +159,8 @@ impl StatusManager {
 
     pub fn is_mutant_prepared(&self) -> bool {
         match self.get_ecc_status(MUTANT_ID as usize) {
-            ECCStatus::Prepared => return false,
-            _ => return true,
+            ECCStatus::Prepared => return true,
+            _ => return false,
         }
     }
 
@@ -175,6 +170,15 @@ impl StatusManager {
 
     pub fn get_ecc_status(&self, id: usize) -> ECCStatus {
         return ECCStatus::from(self.ecc_status[id].state);
+    }
+
+    pub fn set_ecc_busy(&mut self, id: usize) {
+        if id as i32 > MUTANT_ID {
+            return;
+        }
+
+        self.ecc_status[id].state = ECCStatus::Busy.into();
+        self.ecc_holds[id] = true;
     }
 
     pub fn can_ecc_go_forward(&self, id: usize) -> bool {

@@ -182,7 +182,7 @@ impl EnvoyApp {
                     }
                 }
             }
-            self.status.set_ecc_status_transition(id);
+            self.status.set_ecc_busy(id);
         }
     }
 
@@ -199,6 +199,7 @@ impl EnvoyApp {
             ECCOperation::Prepare => {
                 self.transition_ecc(vec![MUTANT_ID as usize], true);
                 loop {
+                    self.poll_embassy();
                     if self.status.is_mutant_prepared() {
                         break;
                     }
@@ -209,6 +210,7 @@ impl EnvoyApp {
             ECCOperation::Configure => {
                 self.transition_ecc(all_ids_but_mutant, true);
                 loop {
+                    self.poll_embassy();
                     if self.status.is_all_but_mutant_ready() {
                         break;
                     }
@@ -269,6 +271,7 @@ impl EnvoyApp {
 
         //Wait for good CoBo status
         loop {
+            self.poll_embassy();
             if self.status.is_all_but_mutant_running() {
                 break;
             }
@@ -311,6 +314,7 @@ impl EnvoyApp {
 
         //Wait for mutant to stop
         loop {
+            self.poll_embassy();
             if self.status.is_mutant_stopped() {
                 break;
             }
