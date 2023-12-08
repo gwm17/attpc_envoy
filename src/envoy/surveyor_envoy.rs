@@ -166,7 +166,7 @@ impl SurveyorEnvoy {
         for line in lines[4..].iter() {
             if line.contains("graw") {
                 let line_entries: Vec<&str> = line.split_whitespace().collect();
-                bytes += line_entries.last().unwrap().parse::<u64>()?;
+                bytes += line_entries[4].parse::<u64>()?;
                 n_files += 1;
             }
         }
