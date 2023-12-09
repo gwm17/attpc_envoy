@@ -240,6 +240,8 @@ impl EnvoyApp {
         self.graphs.reset_graphs();
 
         //Check the run number status using the shell scripting engine
+        tracing::info!("Starting run {} ...", self.config.run_number);
+        tracing::info!("Checking if run number is ok...");
         match execute(
             CommandName::CheckRunExists,
             self.status.get_surveyor_status_response(),
@@ -253,7 +255,9 @@ impl EnvoyApp {
             CommandStatus::Failure => (),
             CommandStatus::CouldNotExecute => return,
         }
+        tracing::info!("Run number validated.");
 
+        tracing::info!("Starting CoBos...");
         //Start CoBos
         for id in 0..(NUMBER_OF_MODULES - 1) {
             match self
@@ -277,6 +281,9 @@ impl EnvoyApp {
             }
         }
 
+        tracing::info!("CoBos started.");
+
+        tracing::info!("Starting MuTaNT...");
         //Start mutant
         match self
             .embassy
@@ -289,6 +296,8 @@ impl EnvoyApp {
             Ok(()) => (),
             Err(e) => tracing::error!("Embassy had an error sending a start run message: {}", e),
         }
+        tracing::info!("MuTaNT started.");
+        tracing::info!("Run {} successfully started!", self.config.run_number);
     }
 
     /// Send a stop run command to all of the envoys.
@@ -299,6 +308,8 @@ impl EnvoyApp {
         //Order is mutant, all cobos
         let operation = ECCOperation::Stop;
 
+        tracing::info!("Stopping run {} ...", self.config.run_number);
+        tracing::info!("Stopping the MuTaNT...");
         //Stop the mutant
         match self
             .embassy
@@ -320,6 +331,9 @@ impl EnvoyApp {
             }
         }
 
+        tracing::info!("MuTaNT stopped.");
+        tracing::info!("Stopping CoBos...");
+
         //Stop all of the CoBos
         for id in 0..(NUMBER_OF_MODULES - 1) {
             match self
@@ -335,6 +349,9 @@ impl EnvoyApp {
             }
         }
 
+        tracing::info!("CoBos stopped.");
+        tracing::info!("Moving .graw files...");
+
         match execute(
             CommandName::MoveGrawFiles,
             self.status.get_surveyor_status_response(),
@@ -347,6 +364,9 @@ impl EnvoyApp {
             }
             CommandStatus::CouldNotExecute => (),
         }
+
+        tracing::info!(".graw files moved.");
+        tracing::info!("Backing up configuration...");
 
         match execute(
             CommandName::BackupConfig,
@@ -361,6 +381,9 @@ impl EnvoyApp {
             CommandStatus::CouldNotExecute => (),
         }
 
+        tracing::info!("Configuration backed up.");
+        tracing::info!("Run {} stopped!", self.config.run_number);
+
         self.config.run_number += 1;
     }
 }
@@ -372,6 +395,7 @@ impl eframe::App for EnvoyApp {
 
         // The top panel, contains the specific configuration
         eframe::egui::TopBottomPanel::top("Config_Panel").show(ctx, |ui| {
+            //Drop down menu
             ui.menu_button(RichText::new("File").size(16.0), |ui| {
                 if ui.button(RichText::new("Save").size(14.0)).clicked() {
                     if let Ok(Some(path)) = native_dialog::FileDialog::new()
@@ -399,6 +423,30 @@ impl eframe::App for EnvoyApp {
                 }
             });
 
+            // Configuration
+            ui.separator();
+
+            ui.label(
+                RichText::new("Configuration")
+                    .color(Color32::LIGHT_BLUE)
+                    .size(18.0),
+            );
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Experiment").size(16.0));
+                ui.text_edit_singleline(&mut self.config.experiment);
+            });
+
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Description").size(16.0));
+                ui.text_edit_singleline(&mut self.config.description);
+            });
+
+            ui.horizontal(|ui| {
+                ui.label(RichText::new("Run Number").size(16.0));
+                ui.add(eframe::egui::widgets::DragValue::new(&mut self.config.run_number).speed(1));
+            });
+
+            // Connect buttons
             ui.separator();
 
             ui.horizontal(|ui| {
@@ -432,26 +480,7 @@ impl eframe::App for EnvoyApp {
                 }
             });
 
-            ui.separator();
-            ui.label(
-                RichText::new("Configuration")
-                    .color(Color32::LIGHT_BLUE)
-                    .size(18.0),
-            );
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Experiment").size(16.0));
-                ui.text_edit_singleline(&mut self.config.experiment);
-            });
-
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Description").size(16.0));
-                ui.text_edit_singleline(&mut self.config.description);
-            });
-
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Run Number").size(16.0));
-                ui.add(eframe::egui::widgets::DragValue::new(&mut self.config.run_number).speed(1));
-            });
+            // Start/Stop buttons
             ui.separator();
 
             ui.horizontal(|ui| {

@@ -180,7 +180,7 @@ impl SurveyorEnvoy {
         status.files = n_files;
         status.bytes_used = bytes;
 
-        status.data_rate = ((bytes - self.last_bytes) as f64) / 2.0;
+        status.data_rate = ((bytes - self.last_bytes) as f64) * 1.0e-6 / 2.0; //MB/s
 
         self.last_bytes = bytes;
 

@@ -13,5 +13,5 @@ MAKE_COMMAND="mkdir -p ${RUN_PATH}"
 
 MOVE_COMMAND="mv -f ${LOC}/*.graw ${RUN_PATH}"
 
-ssh $IP \"${MAKE_COMMAND}\"
-ssh $IP \"${MOVE_COMMAND}\"
+ssh $IP "${MAKE_COMMAND}"
+ssh $IP "${MOVE_COMMAND}"

@@ -9,4 +9,4 @@ RUN_DIR="run_${(l(4)(0))RUN}"
 
 COMMAND="ls ${LOC}/${EXP}/${RUN_DIR}"
 
-ssh $IP \"${COMMAND}\"
+ssh $IP "${COMMAND}"

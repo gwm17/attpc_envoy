@@ -15,7 +15,7 @@ use crate::envoy::surveyor_state::SurveyorState;
 pub struct StatusManager {
     ecc_status: Vec<ECCStatusResponse>,
     surveyor_status: Vec<SurveyorResponse>,
-    ecc_holds: Vec<bool>
+    ecc_holds: Vec<bool>,
 }
 
 impl StatusManager {
@@ -26,7 +26,7 @@ impl StatusManager {
         return Self {
             ecc_status: eccs,
             surveyor_status: surs,
-            ecc_holds: holds
+            ecc_holds: holds,
         };
     }
 
@@ -56,10 +56,7 @@ impl StatusManager {
                             resp.error_message
                         );
                     } else {
-                        tracing::info!(
-                            "ECC Operation completed for module id {}",
-                            module_id
-                        );
+                        tracing::info!("ECC Operation completed for module id {}", module_id);
                     }
                     self.ecc_holds[module_id as usize] = false;
                 }
