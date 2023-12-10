@@ -259,6 +259,23 @@ impl EnvoyApp {
         }
         tracing::info!("Run number validated.");
 
+        tracing::info!("Re-configuring MuTaNT to reset timestamps...");
+        self.transition_ecc(vec![MUTANT_ID as usize], false);
+        loop {
+            self.poll_embassy();
+            if self.status.is_mutant_prepared() {
+                break;
+            }
+        }
+        self.transition_ecc(vec![MUTANT_ID as usize], true);
+        loop {
+            self.poll_embassy();
+            if self.status.is_mutant_ready() {
+                break;
+            }
+        }
+        tracing::info!("MuTaNT is re-configured. Proceeding.");
+
         tracing::info!("Starting CoBos...");
         //Start CoBos
         for id in 0..(NUMBER_OF_MODULES - 1) {
@@ -481,7 +498,7 @@ impl eframe::App for EnvoyApp {
             eframe::egui::Grid::new("Config grid").show(ui, |ui| {
                 ui.label(RichText::new("VTHGEM(V)").size(16.0));
                 ui.add(DragValue::new(&mut self.config.v_thgem).speed(10));
-                ui.label(RichText::new("E-Drift(V/m)").size(16.0));
+                ui.label(RichText::new("E-Drift(V)").size(16.0));
                 ui.add(DragValue::new(&mut self.config.e_drift).speed(10));
                 ui.label(RichText::new("Gas").size(16.0));
                 ui.text_edit_singleline(&mut self.config.gas);
@@ -489,8 +506,8 @@ impl eframe::App for EnvoyApp {
 
                 ui.label(RichText::new("VCathode(kV)").size(16.0));
                 ui.add(DragValue::new(&mut self.config.v_cathode).speed(10));
-                ui.label(RichText::new("E-Trans(V/m)").size(16.0));
-                ui.add(DragValue::new(&mut self.config.e_drift).speed(10));
+                ui.label(RichText::new("E-Trans(V)").size(16.0));
+                ui.add(DragValue::new(&mut self.config.e_trans).speed(10));
                 ui.label(RichText::new("Beam").size(16.0));
                 ui.text_edit_singleline(&mut self.config.beam);
                 ui.end_row();

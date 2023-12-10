@@ -161,6 +161,13 @@ impl StatusManager {
         }
     }
 
+    pub fn is_mutant_ready(&self) -> bool {
+        match self.get_ecc_status(MUTANT_ID as usize) {
+            ECCStatus::Ready => return true,
+            _ => return false,
+        }
+    }
+
     pub fn get_surveyor_status_response(&self) -> &[SurveyorResponse] {
         &self.surveyor_status
     }
@@ -181,7 +188,11 @@ impl StatusManager {
     pub fn can_ecc_go_forward(&self, id: usize) -> bool {
         let status = self.get_ecc_status(id);
         if status == ECCStatus::Described && id != (MUTANT_ID as usize) {
-            return self.is_mutant_prepared();
+            match self.get_ecc_status(MUTANT_ID as usize) {
+                ECCStatus::Prepared => return true,
+                ECCStatus::Ready => return true,
+                _ => return false,
+            }
         } else if status == ECCStatus::Prepared && id == (MUTANT_ID as usize) {
             return self.is_all_but_mutant_ready();
         } else {

@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::path::PathBuf;
 
-const HEADER_STR: &str = "Run,Note,Gas,Beam,Energy(MeV/U),Pressure(Torr),V_THGEM(V),V_MM(V),V_Cathode(kV),E-Drift(V/m),E-Trans(V/m)\n";
+const HEADER_STR: &str = "Run,Note,Gas,Beam,Energy(MeV/U),Pressure(Torr),V_THGEM(V),V_MM(V),V_Cathode(kV),E-Drift(V),E-Trans(V)\n";
 
 /// # Config
 /// (De)Serializable application configuration
