@@ -9,10 +9,11 @@ use crate::envoy::message::EmbassyMessage;
 use crate::envoy::surveyor_state::{SurveyorDiskStatus, SurveyorState};
 
 use eframe::egui::widgets::Button;
+use eframe::egui::widgets::DragValue;
 use eframe::egui::{Color32, RichText};
 use std::fs::File;
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::PathBuf;
 
 const DEFAULT_TEXT_COLOR: Color32 = Color32::LIGHT_GRAY;
 
@@ -48,8 +49,8 @@ impl EnvoyApp {
     }
 
     /// Read in a config from a YAML file at the filepath
-    fn read_config(&mut self, filepath: &Path) {
-        if let Ok(mut file) = File::open(filepath) {
+    fn read_config(&mut self, filepath: PathBuf) {
+        if let Ok(mut file) = File::open(&filepath) {
             let mut yaml_str = String::new();
             match file.read_to_string(&mut yaml_str) {
                 Ok(_) => (),
@@ -64,15 +65,16 @@ impl EnvoyApp {
                     tracing::error!("Could not deserialize config: {}", e);
                     return;
                 }
-            }
+            };
+            self.config.config_path = filepath;
         } else {
             tracing::error!("Could not open the selected file!");
         }
     }
 
     /// Write the current config to a YAML file at the filepath
-    fn write_config(&mut self, filepath: &Path) {
-        if let Ok(mut file) = File::create(filepath) {
+    fn write_config(&self) {
+        if let Ok(mut file) = File::create(&self.config.config_path) {
             let yaml_str = match serde_yaml::to_string::<Config>(&self.config) {
                 Ok(yaml) => yaml,
                 Err(e) => {
@@ -298,6 +300,10 @@ impl EnvoyApp {
         }
         tracing::info!("MuTaNT started.");
         tracing::info!("Run {} successfully started!", self.config.run_number);
+
+        tracing::info!("Saving config to table...");
+        self.config.write_table();
+        tracing::info!("Config saved to table.")
     }
 
     /// Send a stop run command to all of the envoys.
@@ -366,7 +372,7 @@ impl EnvoyApp {
         }
 
         tracing::info!(".graw files moved.");
-        tracing::info!("Backing up configuration...");
+        tracing::info!("Backing up GET configuration...");
 
         match execute(
             CommandName::BackupConfig,
@@ -381,10 +387,12 @@ impl EnvoyApp {
             CommandStatus::CouldNotExecute => (),
         }
 
-        tracing::info!("Configuration backed up.");
+        tracing::info!("GET configuration backed up.");
         tracing::info!("Run {} stopped!", self.config.run_number);
 
         self.config.run_number += 1;
+        self.write_config();
+        tracing::info!("Config autosaved to {}", self.config.config_path.display());
     }
 }
 
@@ -405,7 +413,8 @@ impl eframe::App for EnvoyApp {
                         .add_filter("YAML file", &["yaml"])
                         .show_save_single_file()
                     {
-                        self.write_config(&path);
+                        self.config.config_path = path;
+                        self.write_config();
                     }
                     ui.close_menu();
                 }
@@ -417,7 +426,7 @@ impl eframe::App for EnvoyApp {
                         .add_filter("YAML file", &["yaml"])
                         .show_open_single_file()
                     {
-                        self.read_config(&path);
+                        self.read_config(path);
                     }
                     ui.close_menu();
                 }
@@ -431,25 +440,79 @@ impl eframe::App for EnvoyApp {
                     .color(Color32::LIGHT_BLUE)
                     .size(18.0),
             );
+            ui.label(
+                RichText::new(format!(
+                    "Config File: {}",
+                    self.config.config_path.display()
+                ))
+                .size(16.0)
+                .color(Color32::LIGHT_BLUE),
+            );
             ui.horizontal(|ui| {
-                ui.label(RichText::new("Experiment").size(16.0));
-                ui.text_edit_singleline(&mut self.config.experiment);
+                ui.label(
+                    RichText::new("Experiment")
+                        .size(16.0)
+                        .color(Color32::LIGHT_BLUE),
+                );
+                ui.add(
+                    eframe::egui::widgets::TextEdit::singleline(&mut self.config.experiment)
+                        .desired_width(100.0)
+                        .margin([4.0, 4.0].into()),
+                );
+            });
+
+            ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new("Run Number")
+                        .size(16.0)
+                        .color(Color32::LIGHT_BLUE),
+                );
+                ui.add(DragValue::new(&mut self.config.run_number).speed(1));
             });
 
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Description").size(16.0));
-                ui.text_edit_singleline(&mut self.config.description);
+                ui.add(
+                    eframe::egui::widgets::TextEdit::singleline(&mut self.config.description)
+                        .desired_width(f32::INFINITY)
+                        .margin([4.0, 4.0].into()),
+                );
             });
+            eframe::egui::Grid::new("Config grid").show(ui, |ui| {
+                ui.label(RichText::new("VTHGEM(V)").size(16.0));
+                ui.add(DragValue::new(&mut self.config.v_thgem).speed(10));
+                ui.label(RichText::new("E-Drift(V/m)").size(16.0));
+                ui.add(DragValue::new(&mut self.config.e_drift).speed(10));
+                ui.label(RichText::new("Gas").size(16.0));
+                ui.text_edit_singleline(&mut self.config.gas);
+                ui.end_row();
 
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Run Number").size(16.0));
-                ui.add(eframe::egui::widgets::DragValue::new(&mut self.config.run_number).speed(1));
+                ui.label(RichText::new("VCathode(kV)").size(16.0));
+                ui.add(DragValue::new(&mut self.config.v_cathode).speed(10));
+                ui.label(RichText::new("E-Trans(V/m)").size(16.0));
+                ui.add(DragValue::new(&mut self.config.e_drift).speed(10));
+                ui.label(RichText::new("Beam").size(16.0));
+                ui.text_edit_singleline(&mut self.config.beam);
+                ui.end_row();
+
+                ui.label(RichText::new("VMM(V)").size(16.0));
+                ui.add(DragValue::new(&mut self.config.v_mm).speed(10));
+                ui.label(RichText::new("Pressure(Torr)").size(16.0));
+                ui.add(DragValue::new(&mut self.config.pressure).speed(10));
+                ui.label(RichText::new("Beam Energy (MeV/U)").size(16.0));
+                ui.add(DragValue::new(&mut self.config.energy).speed(1));
+                ui.end_row();
             });
 
             // Connect buttons
             ui.separator();
 
             ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new("Connect to AT-TPC")
+                        .size(16.0)
+                        .color(Color32::LIGHT_BLUE),
+                );
                 if ui
                     .add_enabled(
                         self.embassy.is_none(),
@@ -484,6 +547,11 @@ impl eframe::App for EnvoyApp {
             ui.separator();
 
             ui.horizontal(|ui| {
+                ui.label(
+                    RichText::new("Run Control")
+                        .size(16.0)
+                        .color(Color32::LIGHT_BLUE),
+                );
                 if ui
                     .add_enabled(
                         self.status.is_system_ready(),
