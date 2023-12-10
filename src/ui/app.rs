@@ -323,10 +323,6 @@ impl EnvoyApp {
         tracing::info!("MuTaNT started.");
         tracing::info!("Run {} successfully started!", self.config.run_number);
 
-        tracing::info!("Saving config to table...");
-        self.config.write_table();
-        tracing::info!("Config saved to table.");
-
         //Update run start time
         self.run_start_time = Instant::now();
     }
@@ -414,6 +410,11 @@ impl EnvoyApp {
 
         tracing::info!("GET configuration backed up.");
         tracing::info!("Run {} stopped!", self.config.run_number);
+
+        tracing::info!("Saving config to table...");
+        self.config
+            .write_table(Instant::now() - self.run_start_time);
+        tracing::info!("Config saved to table.");
 
         self.config.run_number += 1;
         self.write_config();

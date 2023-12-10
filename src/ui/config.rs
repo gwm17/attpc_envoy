@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::path::PathBuf;
 
-const HEADER_STR: &str = "Run,Note,Gas,Beam,Energy(MeV/U),Pressure(Torr),V_THGEM(V),V_MM(V),V_Cathode(kV),E-Drift(V),E-Trans(V)\n";
+const HEADER_STR: &str = "Run,Duration(s),Note,Gas,Beam,Energy(MeV/U),Pressure(Torr),V_THGEM(V),V_MM(V),V_Cathode(kV),E-Drift(V),E-Trans(V)\n";
 
 /// # Config
 /// (De)Serializable application configuration
@@ -71,12 +71,13 @@ impl Config {
         return table_path;
     }
 
-    pub fn write_table(&self) {
+    pub fn write_table(&self, ellapsed_time: std::time::Duration) {
         let path = self.get_config_table();
         if let Ok(mut file) = std::fs::OpenOptions::new().append(true).open(path) {
             let row = format!(
-                "{},{},{},{},{},{},{},{},{},{},{}\n",
+                "{},{},{},{},{},{},{},{},{},{},{},{}\n",
                 self.run_number,
+                ellapsed_time.as_secs(),
                 self.description,
                 self.gas,
                 self.beam,
