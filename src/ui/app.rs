@@ -14,6 +14,7 @@ use eframe::egui::{Color32, RichText};
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 const DEFAULT_TEXT_COLOR: Color32 = Color32::LIGHT_GRAY;
 
@@ -29,6 +30,8 @@ pub struct EnvoyApp {
     status: StatusManager,
     graphs: GraphManager,
     max_graph_points: usize,
+    run_start_time: Instant,
+    run_duration: Duration,
 }
 
 impl EnvoyApp {
@@ -45,6 +48,8 @@ impl EnvoyApp {
             status: StatusManager::new(),
             graphs: GraphManager::new(10),
             max_graph_points: 10,
+            run_start_time: Instant::now(),
+            run_duration: Duration::from_secs(0),
         }
     }
 
@@ -320,7 +325,10 @@ impl EnvoyApp {
 
         tracing::info!("Saving config to table...");
         self.config.write_table();
-        tracing::info!("Config saved to table.")
+        tracing::info!("Config saved to table.");
+
+        //Update run start time
+        self.run_start_time = Instant::now();
     }
 
     /// Send a stop run command to all of the envoys.
@@ -590,6 +598,23 @@ impl eframe::App for EnvoyApp {
                 {
                     self.stop_run();
                 }
+
+                if self.status.is_system_running() {
+                    self.run_duration = Instant::now() - self.run_start_time;
+                }
+                let mut secs = self.run_duration.as_secs();
+                let hrs = ((secs as f64) / 3600.0).floor() as u64;
+                secs -= hrs * 3600;
+                let mins = ((secs as f64) / 60.0).floor() as u64;
+                secs -= mins * 60;
+                ui.label(
+                    RichText::new(format!(
+                        "Duration(hrs:mins:ss): {:02}:{:02}:{:02}",
+                        hrs, mins, secs
+                    ))
+                    .size(16.0)
+                    .color(Color32::LIGHT_BLUE),
+                );
             });
             ui.separator();
         });
@@ -829,7 +854,7 @@ impl eframe::App for EnvoyApp {
                                 )));
                             });
                             row.col(|ui| {
-                                ui.label(RichText::new(format!("{}", status.data_rate)));
+                                ui.label(RichText::new(format!("{:.3}", status.data_rate)));
                             });
                             row.col(|ui| {
                                 ui.label(RichText::new(status.percent_used.clone()));
