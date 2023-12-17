@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::path::PathBuf;
 
-const HEADER_STR: &str = "Run,Duration(s),Note,Gas,Beam,Energy(MeV/U),Pressure(Torr),V_THGEM(V),V_MM(V),V_Cathode(kV),E-Drift(V),E-Trans(V)\n";
+const HEADER_STR: &str = "Run,Duration(s),Note,Gas,Beam,Energy(MeV/U),Pressure(Torr),B-Field(T),V_THGEM(V),V_MM(V),V_Cathode(kV),E-Drift(V),E-Trans(V)\n";
 
 /// # Config
 /// (De)Serializable application configuration
@@ -23,6 +23,7 @@ pub struct Config {
     pub gas: String,
     pub beam: String,
     pub energy: f32,
+    pub magnetic_field: f32,
 }
 
 impl Config {
@@ -41,6 +42,7 @@ impl Config {
             gas: String::from("H2"),
             beam: String::from("16C"),
             energy: 0.0,
+            magnetic_field: 0.0,
         };
     }
 
@@ -75,7 +77,7 @@ impl Config {
         let path = self.get_config_table();
         if let Ok(mut file) = std::fs::OpenOptions::new().append(true).open(path) {
             let row = format!(
-                "{},{},{},{},{},{},{},{},{},{},{},{}\n",
+                "{},{},{},{},{},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2},{:.2}\n",
                 self.run_number,
                 ellapsed_time.as_secs(),
                 self.description,
@@ -83,6 +85,7 @@ impl Config {
                 self.beam,
                 self.energy,
                 self.pressure,
+                self.magnetic_field,
                 self.v_thgem,
                 self.v_mm,
                 self.v_cathode,

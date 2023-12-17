@@ -504,31 +504,35 @@ impl eframe::App for EnvoyApp {
                         .margin([4.0, 4.0].into()),
                 );
             });
-            eframe::egui::Grid::new("Config grid").show(ui, |ui| {
-                ui.label(RichText::new("VTHGEM(V)").size(16.0));
-                ui.add(DragValue::new(&mut self.config.v_thgem).speed(10));
-                ui.label(RichText::new("E-Drift(V)").size(16.0));
-                ui.add(DragValue::new(&mut self.config.e_drift).speed(10));
-                ui.label(RichText::new("Gas").size(16.0));
-                ui.text_edit_singleline(&mut self.config.gas);
-                ui.end_row();
+            eframe::egui::Grid::new("Config grid")
+                .min_col_width(100.0)
+                .show(ui, |ui| {
+                    ui.label(RichText::new("VTHGEM(V)").size(16.0));
+                    ui.add(DragValue::new(&mut self.config.v_thgem).speed(10));
+                    ui.label(RichText::new("E-Drift(V)").size(16.0));
+                    ui.add(DragValue::new(&mut self.config.e_drift).speed(10));
+                    ui.label(RichText::new("Gas").size(16.0));
+                    ui.text_edit_singleline(&mut self.config.gas);
+                    ui.label(RichText::new("Magnetic Field(T)").size(16.0));
+                    ui.add(DragValue::new(&mut self.config.magnetic_field).speed(0.01));
+                    ui.end_row();
 
-                ui.label(RichText::new("VCathode(kV)").size(16.0));
-                ui.add(DragValue::new(&mut self.config.v_cathode).speed(10));
-                ui.label(RichText::new("E-Trans(V)").size(16.0));
-                ui.add(DragValue::new(&mut self.config.e_trans).speed(10));
-                ui.label(RichText::new("Beam").size(16.0));
-                ui.text_edit_singleline(&mut self.config.beam);
-                ui.end_row();
+                    ui.label(RichText::new("VCathode(kV)").size(16.0));
+                    ui.add(DragValue::new(&mut self.config.v_cathode).speed(10));
+                    ui.label(RichText::new("E-Trans(V)").size(16.0));
+                    ui.add(DragValue::new(&mut self.config.e_trans).speed(10));
+                    ui.label(RichText::new("Beam").size(16.0));
+                    ui.text_edit_singleline(&mut self.config.beam);
+                    ui.end_row();
 
-                ui.label(RichText::new("VMM(V)").size(16.0));
-                ui.add(DragValue::new(&mut self.config.v_mm).speed(10));
-                ui.label(RichText::new("Pressure(Torr)").size(16.0));
-                ui.add(DragValue::new(&mut self.config.pressure).speed(10));
-                ui.label(RichText::new("Beam Energy (MeV/U)").size(16.0));
-                ui.add(DragValue::new(&mut self.config.energy).speed(1));
-                ui.end_row();
-            });
+                    ui.label(RichText::new("VMM(V)").size(16.0));
+                    ui.add(DragValue::new(&mut self.config.v_mm).speed(10));
+                    ui.label(RichText::new("Pressure(Torr)").size(16.0));
+                    ui.add(DragValue::new(&mut self.config.pressure).speed(10));
+                    ui.label(RichText::new("Beam Energy (MeV/U)").size(16.0));
+                    ui.add(DragValue::new(&mut self.config.energy).speed(1));
+                    ui.end_row();
+                });
 
             // Connect buttons
             ui.separator();
